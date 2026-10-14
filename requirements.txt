@@ -1,0 +1,33 @@
+# Base común para los retos de la Malachathon.
+# Añade aquí lo que haga falta durante el evento.
+
+# Utilidades
+requests
+python-dotenv
+pyyaml
+rich
+pillow
+
+# Datos y análisis (Google, Mercedes)
+numpy
+pandas
+pyarrow
+duckdb
+scikit-learn
+kmodes
+matplotlib
+plotly
+
+# Consolas y demos web (Google, Mercedes, informe de Betsson)
+streamlit
+fastapi
+uvicorn
+
+# Automatización de navegador (Betsson)
+playwright
+
+# LLM para veredictos o análisis con IA (requiere API key en .env)
+anthropic
+
+# Notebooks
+ipykernel

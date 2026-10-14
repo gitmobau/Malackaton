@@ -1,0 +1,20 @@
+# Entorno de Python
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Secretos
+.env
+*.key
+*.pem
+
+# Resultados generados (capturas, informes, modelos)
+outputs/
+
+# Node
+node_modules/
+
+# Sistema
+.DS_Store
+Thumbs.db
