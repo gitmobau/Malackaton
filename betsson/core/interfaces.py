@@ -25,7 +25,9 @@ if TYPE_CHECKING:  # numpy solo para las firmas: core no depende de él en ejecu
 
 GameField = Literal["balance", "bet", "win"]
 PlayMode = Literal["real", "demo", "unknown"]
-BetTarget = Literal["min", "above_balance"]  # S1: apuesta mínima; S2: por encima del saldo
+# "min": apuesta mínima; "above_balance": por encima del saldo (S2, plan B);
+# "one_step": cambiar la apuesta UNA vez (un paso abajo; arriba si ya está en la mínima).
+BetTarget = Literal["min", "above_balance", "one_step"]
 
 # Rutas de evidencia: se guardan con "/" (portables entre el runner Windows y Linux).
 # run_scenario las escribe relativas a la carpeta del run.
@@ -212,6 +214,9 @@ class GameEyes(Protocol):
     def read_bet(self) -> Reading: ...
 
     def read_win(self) -> Reading: ...
+
+    # Objetivos de set_bet que estos ojos soportan; "one_step" solo se pide si está aquí.
+    # (Atributo opcional: run_scenario lo lee con getattr, por compatibilidad.)
 
     def set_bet(self, target: BetTarget) -> Reading:
         """Ajusta la apuesta ("min" en S1, "above_balance" en S2) y devuelve la apuesta visible."""

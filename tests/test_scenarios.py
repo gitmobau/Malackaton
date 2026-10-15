@@ -70,7 +70,7 @@ def test_s1_uses_min_bet(tmp_path: Path) -> None:
     eyes = FakeGameEyes(registry.profile, tmp_path, [reading("1.00"), reading("0.80")], reading("0.20"))
     site = FakeBetssonSite([reading("1.00"), reading("0.80")], tmp_path)
     run_scenario(market=FakeMarket(), scenario=Scenario.S1, site=site, registry=registry,
-                 eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="test")
+                 eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="test", bet_strategy="min")
     assert eyes.bets_set == ["min"]
 
 
@@ -410,7 +410,7 @@ def test_s1_real_numbers_from_betsson_es(tmp_path: Path) -> None:
 
 
 def test_s1_never_spins_above_min_bet(tmp_path: Path) -> None:
-    run = run_s1(tmp_path, bet="2.00")
+    run, _ = _run_strategy(tmp_path, "min", "2.00")
     checks = by_id(run)
     assert checks[CheckId.WAGER_READ].failure_kind is FailureKind.INCONCLUSIVE
     assert "no es la mínima" in checks[CheckId.WAGER_READ].reason
@@ -503,3 +503,92 @@ def test_eye_notes_reach_the_report(tmp_path: Path) -> None:
     run = run_scenario(market=FakeMarket(), scenario=Scenario.S1, site=site, registry=registry,
                        eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="r")
     assert any("presentación no se cerró" in w for w in run.warnings)
+
+
+# --- Estrategia de apuesta -------------------------------------------------------
+
+
+def _run_strategy(tmp_path: Path, strategy: str, bet: str, game=("100.00", "98.00"), betsson=("100.00", "98.00")):
+    registry = FakeRegistry()
+    eyes = FakeGameEyes(registry.profile, tmp_path, [reading(game[0]), reading(game[1])], reading(bet))
+    site = FakeBetssonSite([reading(betsson[0]), reading(betsson[1])], tmp_path)
+    run = run_scenario(market=FakeMarket(), scenario=Scenario.S1, site=site, registry=registry,
+                       eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="r",
+                       bet_strategy=strategy)
+    return run, eyes
+
+
+def test_current_strategy_plays_visible_bet_without_set_bet(tmp_path: Path) -> None:
+    run, eyes = _run_strategy(tmp_path, "current", "2.00")
+    assert eyes.bets_set == []
+    assert run.outcome == "PASS", [r.reason for r in run.results if r.status == "FAIL"]
+
+
+def test_current_strategy_falls_back_to_min_if_bet_exceeds_balance(tmp_path: Path) -> None:
+    _, eyes = _run_strategy(tmp_path, "current", "2.00", game=("1.00", "-1.00"), betsson=("1.00", "-1.00"))
+    assert eyes.bets_set == ["min"]
+
+
+def test_min_strategy_still_refuses_above_min(tmp_path: Path) -> None:
+    run, eyes = _run_strategy(tmp_path, "min", "2.00")
+    assert eyes.bets_set == ["min"]
+    assert by_id(run)[CheckId.WAGER_READ].failure_kind is FailureKind.INCONCLUSIVE
+
+
+def test_current_strategy_s2_does_not_touch_bet(tmp_path: Path) -> None:
+    registry = FakeRegistry()
+    msg = Message(text="Fondos insuficientes", lang_detected="es", matches_insufficient=True)
+    eyes = FakeGameEyes(registry.profile, tmp_path, [reading("0.00"), reading("0.00")], reading("2.00"), message=msg,
+                        spin_starts=False)
+    site = FakeBetssonSite([reading("0.00"), reading("0.00")], tmp_path)
+    run = run_scenario(market=FakeMarket(), scenario=Scenario.S2, site=site, registry=registry,
+                       eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="r",
+                       bet_strategy="current")
+    assert eyes.bets_set == [] and run.outcome == "PASS"
+
+
+def test_unknown_bet_strategy_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        _run_strategy(tmp_path, "max", "0.10")
+
+
+
+def test_step_strategy_changes_bet_once_and_plays_new_value(tmp_path: Path) -> None:
+    registry = FakeRegistry()
+    eyes = FakeGameEyes(registry.profile, tmp_path, [reading("100.00"), reading("98.20")], reading("2.00"),
+                        step_bet=reading("1.80"))
+    site = FakeBetssonSite([reading("100.00"), reading("98.20")], tmp_path)
+    run = run_scenario(market=FakeMarket(), scenario=Scenario.S1, site=site, registry=registry,
+                       eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="r")
+    assert eyes.bets_set == ["one_step"]
+    assert by_id(run)[CheckId.WAGER_READ].observed == "1.80 EUR"
+    assert run.outcome == "PASS", [r.reason for r in run.results if r.status == "FAIL"]
+
+
+def test_step_strategy_without_support_plays_visible_and_warns(tmp_path: Path) -> None:
+    registry = FakeRegistry()
+    eyes = FakeGameEyes(registry.profile, tmp_path, [reading("100.00"), reading("98.00")], reading("2.00"))
+
+    def no_step(target):
+        if target == "one_step":
+            raise ValueError("objetivo de apuesta no soportado")
+        return eyes.read_bet()
+
+    eyes.set_bet = no_step  # type: ignore[method-assign]
+    site = FakeBetssonSite([reading("100.00"), reading("98.00")], tmp_path)
+    run = run_scenario(market=FakeMarket(), scenario=Scenario.S1, site=site, registry=registry,
+                       eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="r")
+    assert any("no se pudo cambiar la apuesta" in w for w in run.warnings)
+    assert run.outcome == "PASS"
+
+
+
+def test_step_is_not_requested_from_eyes_that_do_not_declare_it(tmp_path: Path) -> None:
+    registry = FakeRegistry()
+    eyes = FakeGameEyes(registry.profile, tmp_path, [reading("100.00"), reading("98.00")], reading("2.00"),
+                        bet_targets=("min", "above_balance"))
+    site = FakeBetssonSite([reading("100.00"), reading("98.00")], tmp_path)
+    run = run_scenario(market=FakeMarket(), scenario=Scenario.S1, site=site, registry=registry,
+                       eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="r")
+    assert eyes.bets_set == []  # nunca se pide one_step a ojos que no lo declaran
+    assert any("bet_targets" in w for w in run.warnings) and run.outcome == "PASS"

@@ -15,7 +15,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 from betsson.checks.common import LOGIN_ASSISTED_WARNING
 from betsson.checks.s1 import S1Observation, bet_not_minimum, evaluate_s1
@@ -42,6 +42,14 @@ from betsson.report.html import render_run
 log = logging.getLogger(__name__)
 
 RESULTS_FILE = "results.json"
+BetStrategy = Literal["step", "min", "current"]
+# "step" (por defecto, decisión de Migue): se cambia la apuesta UNA vez (un paso) y se juega
+#   con la nueva; demuestra que la apuesta mostrada tras el cambio es la descontada.
+# "min": se baja a la apuesta mínima del mercado y no se gira si no se llega.
+# "current": se juega con la apuesta visible.
+# En "step" y "current", si la apuesta no cabe en el saldo se baja a la mínima.
+DEFAULT_BET_STRATEGY: BetStrategy = "step"
+BET_STRATEGIES = ("step", "min", "current")
 NOTICE_VALUE = "aviso visible"  # un aviso no es una lectura dudosa
 MAX_ERROR_CHARS = 300
 _URL = re.compile(r"https?://\S+")
@@ -110,12 +118,38 @@ def _fingerprint_frame(obs: dict[str, Any], extra: dict[str, Any]) -> None:
         extra["frame"], extra["iframe_url"] = handle.capture(), handle.iframe_url
 
 
+def _choose_bet_s1(eyes: GameEyes, obs: dict[str, Any], strategy: BetStrategy) -> None:
+    """Apuesta de S1 y saldo antes. En "current" solo se baja a la mínima si la visible no cabe."""
+    if strategy == "min":
+        obs["bet"] = eyes.set_bet("min")
+        obs["game_before"] = eyes.read_balance()
+        return
+    obs["bet"] = eyes.read_bet()
+    if strategy == "step":
+        initial = obs["bet"]
+        # Solo si los ojos lo declaran: unos ojos sin "one_step" podrían tratarlo como otra cosa
+        # (p. ej. subir hasta superar el saldo). Si no, se juega con la apuesta visible.
+        supported = "one_step" in (getattr(eyes, "bet_targets", ()) or ())
+        try:
+            if not supported:
+                raise NotImplementedError("los ojos no declaran 'one_step' en bet_targets")
+            obs["bet"] = eyes.set_bet("one_step")
+        except (ValueError, NotImplementedError) as exc:
+            obs.setdefault("_notes", []).append(f"no se pudo cambiar la apuesta un paso ({safe_error(exc)})")
+        else:
+            if initial.ok and obs["bet"].ok and initial.money == obs["bet"].money:
+                obs.setdefault("_notes", []).append(f"la apuesta no cambió tras un paso ({initial.money})")
+    obs["game_before"] = eyes.read_balance()
+    bet, balance = obs["bet"], obs["game_before"]
+    if bet.ok and balance.ok and bet.money.amount > balance.money.amount:
+        obs["bet"] = eyes.set_bet("min")  # sin saldo para la visible no habría tirada pagada
+
+
 def _play_s1(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target: BetTarget,
              on_ready: Callable[[], None]) -> None:
     # El saldo del juego solo se lee ANTES de pulsar girar y DESPUÉS de que la tirada
     # termine (wait_spin_end); nunca a mitad de giro, porque no se sabe cuándo descuenta.
-    obs["bet"] = eyes.set_bet(bet_target)
-    obs["game_before"] = eyes.read_balance()
+    _choose_bet_s1(eyes, obs, obs.pop("_strategy", DEFAULT_BET_STRATEGY))
     on_ready()
     if bet_not_minimum(obs["bet"], obs.get("min_bet"), obs.pop("_tolerance")):
         return  # nunca se gira por encima de la apuesta mínima: wager_read queda no concluyente
@@ -133,8 +167,10 @@ def _play_s1(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target:
 
 def _play_s2(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target: BetTarget,
              on_ready: Callable[[], None]) -> None:
-    # Cuenta sin saldo: basta la mínima. Cuenta con saldo: bet_target="above_balance".
-    obs["bet"] = eyes.set_bet(bet_target)
+    # Cuenta sin saldo: cualquier apuesta > 0 provoca el rechazo; en "current" no se toca.
+    # Cuenta con saldo (plan B): bet_target="above_balance" siempre ajusta la apuesta.
+    strategy = obs.pop("_strategy", DEFAULT_BET_STRATEGY)
+    obs["bet"] = eyes.read_bet() if strategy != "min" and bet_target == "min" else eyes.set_bet(bet_target)
     obs["game_before"] = eyes.read_balance()
     on_ready()
     obs["spin_started"] = eyes.spin()
@@ -153,6 +189,8 @@ def _play_s2(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target:
 
 def _evaluate(scenario: Scenario, obs: dict[str, Any], market: MarketContext) -> list[CheckResult]:
     obs.pop("_tolerance", None)
+    obs.pop("_strategy", None)
+    obs.pop("_notes", None)
     if scenario is Scenario.S1:
         return evaluate_s1(S1Observation(**obs), market)
     return evaluate_s2(S2Observation(**obs), market)
@@ -238,11 +276,14 @@ def _with_drift(run: RunResult, baselines: BaselineStore, extra: dict[str, Any],
 
 
 def _collect(scenario: Scenario, site: BetssonSite, registry: ProviderRegistry, eyes_factory: GameEyesFactory,
-             market: MarketContext, slug: str, bet_target: BetTarget) -> tuple[dict[str, Any], dict[str, Any]]:
+             market: MarketContext, slug: str, bet_target: BetTarget,
+             bet_strategy: BetStrategy = DEFAULT_BET_STRATEGY) -> tuple[dict[str, Any], dict[str, Any]]:
     """Ejecuta los pasos. Devuelve (observación, extra con provider/error/evidence)."""
     obs: dict[str, Any] = (
-        {"min_bet": market.min_bet, "_tolerance": market.money_tolerance} if scenario is Scenario.S1 else {}
+        {"min_bet": market.min_bet if bet_strategy == "min" else None, "_tolerance": market.money_tolerance}
+        if scenario is Scenario.S1 else {}
     )
+    obs["_strategy"] = bet_strategy
     extra: dict[str, Any] = {"notices": (), "provider": None, "error": None, "evidence": (), "frame": None, "iframe_url": None,
                              "handle": None, "eye_notes": ()}
     eyes: GameEyes | None = None
@@ -275,16 +316,20 @@ def run_scenario(
     run_id: str,
     bet_target: BetTarget = "min",
     baselines: BaselineStore | None = None,
+    bet_strategy: BetStrategy = DEFAULT_BET_STRATEGY,
 ) -> RunResult:
     """Ejecuta un escenario en un mercado y deja results.json y report.html en out_dir."""
     if scenario is Scenario.S1 and bet_target != "min":
         raise ValueError("S1 se juega siempre con la apuesta mínima")
     started = datetime.now(timezone.utc)
-    obs, extra = _collect(scenario, site, registry, eyes_factory, market, slug, bet_target)
+    if bet_strategy not in BET_STRATEGIES:
+        raise ValueError(f"bet_strategy desconocida: {bet_strategy!r} ({' | '.join(BET_STRATEGIES)})")
+    obs, extra = _collect(scenario, site, registry, eyes_factory, market, slug, bet_target, bet_strategy)
     warnings = [f"PROVIDER_UI_CHANGED: {obs['ui_changed']}"] if obs.get("ui_changed") else []
     if obs.get("login_assisted"):
         warnings.insert(0, LOGIN_ASSISTED_WARNING)
     warnings += [f"ojos del juego: {n}" for n in extra["eye_notes"]]
+    warnings += [f"apuesta: {n}" for n in obs.get("_notes", [])]
     error = extra["error"]
     try:
         results = tuple(_evaluate(scenario, obs, market))
