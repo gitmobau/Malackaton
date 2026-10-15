@@ -17,6 +17,17 @@ Una persona habla y otra maneja el portátil (el del runner, `portatil-alejandro
 
 Plan B si la ejecución en directo falla o tarda más de 2 min: pasar al **vídeo de respaldo** (bloque 2) y al informe de la última ejecución buena (bloque 3). No se depura en directo.
 
+## La validación en un solo comando
+
+Con las dos sesiones del login asistido vivas, un solo comando comprueba las sesiones, lanza el mismo `pytest -m real` que la CI y abre el informe:
+
+```powershell
+python -m betsson.site.run --market es --scenarios s1,s2 --game big-bass-splash
+# alias corto: python -m betsson.run --market es --scenarios s1,s2 --game big-bass-splash
+```
+
+Si falta alguna sesión, dice qué login repetir y no ejecuta nada. Detalles y opciones en [`docs/demo/UN-COMANDO.md`](UN-COMANDO.md). Sirve de plan B en la demo si la CI tarda: mismo código y mismo informe, sin esperar al runner.
+
 ## El login, frase para el jurado
 
 Otro equipo presenta un login totalmente automático. Nuestra frase, literal y sin ponernos a la defensiva:
