@@ -27,6 +27,8 @@ SEARCH_RESULT_LINK = "a[data-test-id='game-thumbnail-title']"
 
 # --- Página del juego --------------------------------------------------------
 LOGIN_TO_PLAY = re.compile(r"ingresar y jugar|log ?in and play|login to play", re.I)
+# Contenedores de diálogos modales (el de límites de sesión del regulador, por ejemplo).
+DIALOG_CONTAINERS = "[role='dialog'], dialog, [aria-modal='true'], [class*='modal' i], [class*='dialog' i]"
 # Botón de la página del juego que lo lanza (con sesión iniciada).
 PLAY_BUTTON = re.compile(r"^\s*(jugar|jugar ahora|play|play now)\s*$", re.I)
 # Iframes de terceros que nunca son el juego.

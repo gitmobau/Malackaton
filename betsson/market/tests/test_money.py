@@ -188,3 +188,10 @@ def test_no_number_raises(es: Market, text: str) -> None:
 def test_bad_grouping_raises(es: Market) -> None:
     with pytest.raises(MoneyParseError):
         parse_money("1.23.4 €", es)
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"), [("x2 100,00 €", "100.00"), ("EUR100", "100"), ("Nivel3 SALDO 7,50 €", "7.50")]
+)
+def test_number_glued_to_a_word_is_skipped(es: Market, text: str, expected: str) -> None:
+    assert parse_money(text, es).amount == Decimal(expected)

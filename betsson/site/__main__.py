@@ -18,7 +18,7 @@ from playwright.sync_api import sync_playwright
 
 from betsson.market import load_market
 from betsson.core import GameOpenError
-from betsson.site import BetssonSite, ChunkedTrace, MissingCredentialsError, SiteError
+from betsson.site import BetssonSite, MissingCredentialsError, SegmentedTrace, SiteError
 
 VIEWPORT = {"width": 1366, "height": 768}
 # Perfil propio del comprobador (un "dispositivo habitual"), FUERA del repo: nunca va a git.
@@ -55,8 +55,7 @@ def main() -> int:
             locale=market.locale,
             timezone_id=market.timezone,
         )
-        context.tracing.start(screenshots=True, snapshots=True)
-        trace = ChunkedTrace(context, out)
+        trace = SegmentedTrace(context, out)  # se detiene del todo durante el login
         page = context.pages[0] if context.pages else context.new_page()
         site = BetssonSite(page, market, account=args.account, evidence_dir=out, trace=trace)
         status = 0
@@ -90,7 +89,7 @@ def main() -> int:
         finally:
             if logged_in:  # no dejar abierta la sesión de juego del regulador
                 logging.info("cierre de sesión: %s", "ok" if site.logout() else "NO CONFIRMADO, revisar a mano")
-            context.tracing.stop(path=out / "trace-final.zip")
+            trace.close()
             context.close()
         logging.info("evidencias en %s", out)
         return status

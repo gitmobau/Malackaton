@@ -22,7 +22,7 @@ from betsson.market.schema import Market, NumberFormat
 
 _HSPACE = "    "  # espacios horizontales; nunca saltos de línea
 # Dos formas de número: miles con espacio (+ decimal opcional) o dígitos con . y ,
-_NUMBER = re.compile(rf"[-−]?(?:\d{{1,3}}(?:[{_HSPACE}]\d{{3}}(?!\d))+(?:[.,]\d+)?|\d+(?:[.,]\d+)*)")
+_NUMBER = re.compile(rf"(?<!\d)[-−]?(?:\d{{1,3}}(?:[{_HSPACE}]\d{{3}}(?!\d))+(?:[.,]\d+)?|\d+(?:[.,]\d+)*)")
 _SPACE_GROUPED = re.compile(rf"([\d{_HSPACE}]+)(?:([.,])(\d+))?")
 _MINUS = "-−"
 
@@ -135,6 +135,18 @@ def _to_decimal(token: str, market: Market) -> Decimal:
     return -value if negative else value
 
 
+def _first_amount(text: str, market: Market) -> re.Match[str]:
+    """Primer número que no va pegado a una palabra ("x2 100,00 €" no es 2100), salvo a un símbolo de moneda ("PEN100")."""
+    pos = 0
+    while (match := _NUMBER.search(text, pos)) is not None:
+        start = match.start()
+        if start and text[start - 1].isalpha() and not _ends_with_symbol(text[:start], market):
+            pos = start + 1
+            continue
+        return match
+    raise MoneyParseError(f"no hay ningún importe en '{text}'")
+
+
 def parse_money(text: str, market: Market, *, require_currency: bool = False) -> Money:
     """Extrae el primer importe de `text` según el formato de `market`.
 
@@ -145,9 +157,7 @@ def parse_money(text: str, market: Market, *, require_currency: bool = False) ->
     """
     if not text or not text.strip():
         raise MoneyParseError("texto vacío")
-    match = _NUMBER.search(text)
-    if not match:
-        raise MoneyParseError(f"no hay ningún importe en '{text}'")
+    match = _first_amount(text, market)
     before = text[: match.start()]
     if before.endswith((".", ",")) and not _ends_with_symbol(before, market):
         raise MoneyParseError(f"separador sin parte entera en '{text}'")  # ",50 €": ¿se perdió el 0?

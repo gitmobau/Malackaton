@@ -334,25 +334,33 @@ class BetssonSite:
         return None
 
     def read_balance(self, timeout_ms: int = DEFAULT_TIMEOUT_MS) -> Reading:
-        """Saldo de Betsson leído del DOM, con captura. Si no se puede leer: Reading no concluyente, sin excepción."""
+        """Saldo de Betsson leído del DOM, con captura. Nunca lanza: si no se puede leer, Reading no concluyente."""
         deadline = time.monotonic() + timeout_ms / 1000
         toggled = False
         while time.monotonic() < deadline:
-            loc = self._find_balance_locator()
-            if loc is not None:
-                return self._balance_reading(loc)
-            toggle = self._balance_toggle()
-            if toggle is not None and not toggled:
-                toggle.click()
-                toggled = True
-                continue
             try:
+                loc = self._find_balance_locator()
+                if loc is not None:
+                    return self._balance_reading(loc)
+                toggle = self._balance_toggle()
+                if toggle is not None and not toggled:
+                    toggle.click()
+                    toggled = True
+                    continue
                 self.page.get_by_text(self._money_text_regex()).first.wait_for(state="visible", timeout=_POLL_MS)
-            except PlaywrightTimeoutError:
-                pass
+            except PlaywrightError:  # navegación o re-render en curso: se vuelve a mirar hasta el tope
+                continue
         return Reading(
-            reason=f"saldo de Betsson no visible en {self.market.id}", evidence_path=self.screenshot("betsson_balance")
+            reason=f"saldo de Betsson no visible en {self.market.id}", evidence_path=self._safe_screenshot("betsson_balance")
         )
+
+    def _safe_screenshot(self, name: str) -> Path | None:
+        """Captura para un Reading: si la página no se deja capturar, la lectura sale sin evidencia, no con excepción."""
+        try:
+            return self.screenshot(name)
+        except PlaywrightError:
+            log.warning("no se pudo guardar la captura '%s'", name)
+            return None
 
     def _balance_reading(self, loc: Locator) -> Reading:
         """Lee el saldo cuando deja de cambiar: el monedero puede tardar en reflejar la liquidación de una tirada."""
@@ -362,7 +370,7 @@ class BetssonSite:
             while True:
                 if time.monotonic() >= deadline:
                     return Reading(
-                        raw_text=text, reason="saldo no estable", evidence_path=self.screenshot("betsson_balance")
+                        raw_text=text, reason="saldo no estable", evidence_path=self._safe_screenshot("betsson_balance")
                     )
                 handle = loc.element_handle()
                 try:  # señal: el texto del elemento cambia dentro de la ventana; si no cambia, está estable
@@ -376,13 +384,13 @@ class BetssonSite:
                 text = loc.inner_text().strip()
             money = parse_money(text, self.market, require_currency=True)
         except (PlaywrightError, MoneyParseError) as exc:
-            return Reading(reason=f"saldo de Betsson ilegible: {exc}", evidence_path=self.screenshot("betsson_balance"))
+            return Reading(reason=f"saldo de Betsson ilegible: {exc}", evidence_path=self._safe_screenshot("betsson_balance"))
         return Reading(
             raw_text=text,
             money=money,
             currency_seen=True,
             confidence=1.0,
-            evidence_path=self.screenshot("betsson_balance"),
+            evidence_path=self._safe_screenshot("betsson_balance"),
         )
 
     # ------------------------------------------------------------------ juegos
@@ -512,18 +520,28 @@ class BetssonSite:
         cfg = self.market.site.session_limits
         if cfg is None:
             return False
-        title = self.page.get_by_text(re.compile(cfg.title_pattern, re.I)).filter(visible=True)
-        if not title.count():
+        title_re = re.compile(cfg.title_pattern, re.I)
+        submit_re = re.compile(cfg.submit_pattern, re.I)
+        # El diálogo es el contenedor visible con el título Y su botón de confirmar: así ni el título
+        # ni "Iniciar sesión" pueden resolverse fuera de él (p. ej. en la cabecera o en el pie).
+        dialog = (
+            self.page.locator(sel.DIALOG_CONTAINERS)
+            .filter(visible=True)
+            .filter(has_text=title_re)
+            .filter(has=self.page.get_by_role("button", name=submit_re))
+        )
+        if not dialog.count():
             return False
+        dialog = dialog.last  # el más interno si los contenedores van anidados
         evidence.append(self.screenshot("session_limits_dialog"))
         for pattern in (cfg.time_option_pattern, cfg.loss_option_pattern):
-            option = self.page.get_by_role("button", name=re.compile(pattern, re.I)).filter(visible=True)
+            option = dialog.get_by_role("button", name=re.compile(pattern, re.I)).filter(visible=True)
             if not option.count():
                 raise GameLaunchError(f"diálogo de límites de sesión sin la opción '{pattern}'")
             option.first.click()
         evidence.append(self.screenshot("session_limits_chosen"))
-        self.page.get_by_role("button", name=re.compile(cfg.submit_pattern, re.I)).filter(visible=True).first.click()
-        title.first.wait_for(state="hidden", timeout=DEFAULT_TIMEOUT_MS)
+        dialog.get_by_role("button", name=submit_re).filter(visible=True).first.click()
+        dialog.wait_for(state="hidden", timeout=DEFAULT_TIMEOUT_MS)
         log.info("límites de sesión aceptados (los más prudentes de la configuración)")
         return True
 

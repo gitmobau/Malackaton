@@ -2,6 +2,13 @@
 
 Rama `feat/A-betsson-web`, con `origin/main` (esqueleto del PR #1) ya fusionado. Escrito el 15-oct a las 12:50 para migrar al portátil de Alejandro.
 
+> **Estado a las 15:30 del 15-oct (portátil de Alejandro)**: pasos 1, 2 y 3 hechos y en el PR de A.
+> - Adaptado a `betsson.core`: Money, Reading, GameHandle (play_mode y capture), GameOpenError, login() -> bool y logout().
+> - Diálogo de límites de la DGOJ en open_game. Login como un jugador, con perfil persistente fuera del repo.
+> - **Fuga corregida**: `stop_chunk` dejaba el POST del login en la traza. Ahora `SegmentedTrace` detiene la traza del todo (test en `betsson/site/tests/test_tracing.py`).
+> - **Bloqueo**: Betsson rechaza el login automatizado ("Actualiza la página… hasta 10 minutos") dos veces: a las 13:57 y a las 15:04. Funciona a mano en el mismo portátil. Pregunta 18b a los mentores. NO reintentar en bucle.
+> - Siguiente: plan B "login asistido" (`--login=asistido`) detrás de una opción, preparado y sin usar hasta el visto bueno de los mentores.
+
 ## Hecho y probado
 
 - **Mercados** (`betsson/market/`, `config/markets/`)
