@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "run_id": "demo-20261015-1811",
+  "market": "es",
+  "scenario": "S2",
+  "provider": "pragmatic",
+  "game": "big-bass-splash",
+  "started_at": "2026-10-15T16:11:32.385825Z",
+  "finished_at": "2026-10-15T16:15:44.999422Z",
+  "results": [
+    {
+      "id": "login_ok",
+      "status": "PASS",
+      "reason": "sesión de jugador válida (login asistido por una persona a las 16:03)",
+      "failure_kind": null,
+      "expected": null,
+      "observed": "asistido",
+      "evidence": []
+    },
+    {
+      "id": "real_play",
+      "status": "PASS",
+      "reason": "juego abierto en Real Play (sesión de juego del regulador activa desde las 17:49 (límites aceptados en una ejecución anterior, válidos 5 h; solo existen con dinero real))",
+      "failure_kind": null,
+      "expected": null,
+      "observed": "real",
+      "evidence": [
+        "game_opened.png"
+      ]
+    },
+    {
+      "id": "currency_matches_market",
+      "status": "PASS",
+      "reason": "5 importes visibles en EUR",
+      "failure_kind": null,
+      "expected": "EUR",
+      "observed": "EUR",
+      "evidence": [
+        "015_read_balance.png",
+        "012_read_bet.png",
+        "019_read_balance.png",
+        "betsson_balance.png",
+        "betsson_balance.png"
+      ]
+    },
+    {
+      "id": "spin_rejected",
+      "status": "PASS",
+      "reason": "tirada rechazada: aviso «BIGBASS SPLASH 10 COMPRETIRADAS A GRATIS A10 10 QQQ X apuesta. Haga un depósito en su cuenta Fondos insuficientes para realizar esta o reduzca el nivel de la apuesta. MENSAJE HAGA SU APUESTA! ACEPTAR QQQQ APUESTA 0,10 € 0,00 € CRÉDITO TIR. AUTO. BIG BASS SPLASH • 18:15» y saldo del juego sin cambios, sin cambio visual",
+      "failure_kind": null,
+      "expected": null,
+      "observed": null,
+      "evidence": [
+        "018_message.png"
+      ]
+    },
+    {
+      "id": "insufficient_message_language",
+      "status": "PASS",
+      "reason": "mensaje en es: «BIGBASS SPLASH 10 COMPRETIRADAS A GRATIS A10 10 QQQ X apuesta. Haga un depósito en su cuenta Fondos insuficientes para realizar esta o reduzca el nivel de la apuesta. MENSAJE HAGA SU APUESTA! ACEPTAR QQQQ APUESTA 0,10 € 0,00 € CRÉDITO TIR. AUTO. BIG BASS SPLASH • 18:15»",
+      "failure_kind": null,
+      "expected": "es",
+      "observed": "es",
+      "evidence": [
+        "018_message.png"
+      ]
+    },
+    {
+      "id": "betsson_balance_unchanged",
+      "status": "PASS",
+      "reason": "sin cambios: antes 0.00 EUR; después 0.00 EUR; diferencia 0.00 (tolerancia 0.01)",
+      "failure_kind": null,
+      "expected": "0.00 EUR",
+      "observed": "0.00 EUR",
+      "evidence": [
+        "betsson_balance.png",
+        "betsson_balance.png"
+      ]
+    },
+    {
+      "id": "ingame_balance_unchanged",
+      "status": "PASS",
+      "reason": "sin cambios: antes 0.00 EUR; después 0.00 EUR; diferencia 0.00 (tolerancia 0.01)",
+      "failure_kind": null,
+      "expected": "0.00 EUR",
+      "observed": "0.00 EUR",
+      "evidence": [
+        "015_read_balance.png",
+        "019_read_balance.png"
+      ]
+    }
+  ],
+  "warnings": [
+    "login asistido por una persona: el resto de la ejecución es automática",
+    "ojos del juego: intro 'presentacion': botón no encontrado, se usó la pista",
+    "ojos del juego: botón de girar no encontrado por plantilla: se usa la pista de zona",
+    "ojos del juego: tirada rechazada: al pulsar apareció un mensaje del juego",
+    "ojos del juego: importe encontrado releyendo ampliada la zona del perfil",
+    "el juego del proveedor ha cambiado desde la última ejecución (demo-20261015-1746): la franja de controles ha cambiado (12 de 64 bits)"
+  ],
+  "error": null,
+  "evidence": [
+    "fingerprint_before.png",
+    "fingerprint_now.png"
+  ],
+  "readings": [
+    {
+      "name": "Saldo de Betsson antes",
+      "source": "betsson",
+      "raw_text": "0,00 €",
+      "value": "0.00 EUR",
+      "confidence": 1.0,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "betsson_balance.png"
+    },
+    {
+      "name": "Apuesta",
+      "source": "juego",
+      "raw_text": "0,10 €",
+      "value": "0.10 EUR",
+      "confidence": 0.99899,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "012_read_bet.png"
+    },
+    {
+      "name": "Saldo del juego antes",
+      "source": "juego",
+      "raw_text": "0,00 €",
+      "value": "0.00 EUR",
+      "confidence": 0.97764,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "015_read_balance.png"
+    },
+    {
+      "name": "Saldo del juego después",
+      "source": "juego",
+      "raw_text": "0,00 €",
+      "value": "0.00 EUR",
+      "confidence": 0.96871,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "019_read_balance.png"
+    },
+    {
+      "name": "Mensaje en el juego",
+      "source": "juego",
+      "raw_text": "BIGBASS SPLASH 10 COMPRETIRADAS A GRATIS A10 10 QQQ X apuesta. Haga un depósito en su cuenta Fondos insuficientes para realizar esta o reduzca el nivel de la apuesta. MENSAJE HAGA SU APUESTA! ACEPTAR QQQQ APUESTA 0,10 € 0,00 € CRÉDITO TIR. AUTO. BIG BASS SPLASH • 18:15",
+      "value": "idioma es",
+      "confidence": 0.57904,
+      "currency_seen": null,
+      "reason": null,
+      "evidence": "018_message.png"
+    },
+    {
+      "name": "Saldo de Betsson después",
+      "source": "betsson",
+      "raw_text": "0,00 €",
+      "value": "0.00 EUR",
+      "confidence": 1.0,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "betsson_balance.png"
+    }
+  ],
+  "missing_checks": [],
+  "verdict": "PASS",
+  "outcome": "PASS",
+  "provider_ui_changed": false
+}

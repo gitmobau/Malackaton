@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "run_id": "demo-20261015-1746",
+  "market": "es",
+  "scenario": "S1",
+  "provider": "pragmatic",
+  "game": "big-bass-splash",
+  "started_at": "2026-10-15T15:46:46.544245Z",
+  "finished_at": "2026-10-15T15:47:57.784090Z",
+  "results": [
+    {
+      "id": "login_ok",
+      "status": "PASS",
+      "reason": "sesión de jugador válida (login asistido por una persona a las 15:36)",
+      "failure_kind": null,
+      "expected": null,
+      "observed": "asistido",
+      "evidence": []
+    },
+    {
+      "id": "real_play",
+      "status": "PASS",
+      "reason": "juego abierto en Real Play (sesión de juego del regulador activa desde las 17:15 (límites aceptados en una ejecución anterior, válidos 5 h; solo existen con dinero real))",
+      "failure_kind": null,
+      "expected": null,
+      "observed": "real",
+      "evidence": [
+        "game_opened.png"
+      ]
+    },
+    {
+      "id": "currency_matches_market",
+      "status": "PASS",
+      "reason": "5 importes visibles en EUR",
+      "failure_kind": null,
+      "expected": "EUR",
+      "observed": "EUR",
+      "evidence": [
+        "004_read_balance.png",
+        "001_read_bet.png",
+        "011_read_balance.png",
+        "betsson_balance.png",
+        "betsson_balance.png"
+      ]
+    },
+    {
+      "id": "betsson_balance_before",
+      "status": "PASS",
+      "reason": "saldo de Betsson antes leído: 99.80 EUR («99,80 €»)",
+      "failure_kind": null,
+      "expected": null,
+      "observed": "99.80 EUR",
+      "evidence": [
+        "betsson_balance.png"
+      ]
+    },
+    {
+      "id": "wager_read",
+      "status": "PASS",
+      "reason": "apuesta visible leído: 0.10 EUR («0,10 €»)",
+      "failure_kind": null,
+      "expected": null,
+      "observed": "0.10 EUR",
+      "evidence": [
+        "001_read_bet.png"
+      ]
+    },
+    {
+      "id": "spin_started",
+      "status": "PASS",
+      "reason": "se vio empezar la tirada (cambio visual tras pulsar)",
+      "failure_kind": null,
+      "expected": null,
+      "observed": null,
+      "evidence": []
+    },
+    {
+      "id": "spin_completed",
+      "status": "PASS",
+      "reason": "la tirada terminó en 14.5 s (pantalla estable)",
+      "failure_kind": null,
+      "expected": null,
+      "observed": null,
+      "evidence": [
+        "007_spin_end.png"
+      ]
+    },
+    {
+      "id": "payout_read",
+      "status": "PASS",
+      "reason": "ganancia leído: 0 EUR («»)",
+      "failure_kind": null,
+      "expected": null,
+      "observed": "0 EUR",
+      "evidence": [
+        "008_read_win.png"
+      ]
+    },
+    {
+      "id": "ingame_balance_consistent",
+      "status": "PASS",
+      "reason": "cuadra: 99.80 EUR − 0.10 EUR + 0 EUR = 99.70 EUR; leído 99.70 EUR; diferencia 0.00 (tolerancia 0.01)",
+      "failure_kind": null,
+      "expected": "99.70 EUR",
+      "observed": "99.70 EUR",
+      "evidence": [
+        "004_read_balance.png",
+        "001_read_bet.png",
+        "008_read_win.png",
+        "011_read_balance.png"
+      ]
+    },
+    {
+      "id": "betsson_balance_reconciles",
+      "status": "PASS",
+      "reason": "cuadra: 99.80 EUR − 0.10 EUR + 0 EUR = 99.70 EUR; leído 99.70 EUR; diferencia 0.00 (tolerancia 0.01)",
+      "failure_kind": null,
+      "expected": "99.70 EUR",
+      "observed": "99.70 EUR",
+      "evidence": [
+        "betsson_balance.png",
+        "001_read_bet.png",
+        "008_read_win.png",
+        "betsson_balance.png"
+      ]
+    },
+    {
+      "id": "wager_is_used_wager",
+      "status": "PASS",
+      "reason": "coincide: apuesta mostrada 0.10 EUR; descontado 0.10 EUR; apuesta tras la tirada 0.10 EUR",
+      "failure_kind": null,
+      "expected": "0.10 EUR",
+      "observed": "0.10 EUR",
+      "evidence": [
+        "004_read_balance.png",
+        "008_read_win.png",
+        "011_read_balance.png",
+        "001_read_bet.png",
+        "012_read_bet.png"
+      ]
+    }
+  ],
+  "warnings": [
+    "login asistido por una persona: el resto de la ejecución es automática",
+    "huella de referencia del juego creada en esta ejecución"
+  ],
+  "error": null,
+  "evidence": [],
+  "readings": [
+    {
+      "name": "Saldo de Betsson antes",
+      "source": "betsson",
+      "raw_text": "99,80 €",
+      "value": "99.80 EUR",
+      "confidence": 1.0,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "betsson_balance.png"
+    },
+    {
+      "name": "Apuesta",
+      "source": "juego",
+      "raw_text": "0,10 €",
+      "value": "0.10 EUR",
+      "confidence": 0.99845,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "001_read_bet.png"
+    },
+    {
+      "name": "Saldo del juego antes",
+      "source": "juego",
+      "raw_text": "99,80 €",
+      "value": "99.80 EUR",
+      "confidence": 0.96552,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "004_read_balance.png"
+    },
+    {
+      "name": "Ganancia",
+      "source": "juego",
+      "raw_text": "",
+      "value": "0 EUR",
+      "confidence": 0.99261,
+      "currency_seen": false,
+      "reason": "sin etiqueta de ganancia con saldo y apuesta visibles: el perfil la oculta cuando es 0",
+      "evidence": "008_read_win.png"
+    },
+    {
+      "name": "Saldo del juego después",
+      "source": "juego",
+      "raw_text": "99,70 €",
+      "value": "99.70 EUR",
+      "confidence": 0.96855,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "011_read_balance.png"
+    },
+    {
+      "name": "Apuesta tras la tirada",
+      "source": "juego",
+      "raw_text": "0,10 €",
+      "value": "0.10 EUR",
+      "confidence": 0.9981,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "012_read_bet.png"
+    },
+    {
+      "name": "Saldo de Betsson después",
+      "source": "betsson",
+      "raw_text": "99,70 €",
+      "value": "99.70 EUR",
+      "confidence": 1.0,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "betsson_balance.png"
+    }
+  ],
+  "missing_checks": [],
+  "verdict": "PASS",
+  "outcome": "PASS",
+  "provider_ui_changed": false
+}
