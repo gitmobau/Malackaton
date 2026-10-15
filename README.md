@@ -181,27 +181,40 @@ Un mercado nuevo es **un archivo** `config/markets/<id>.json`, validado con pyda
 `com.json` (Malta, EUR, inglés) y `pe.json` (Perú, PEN) ya están configurados y desactivados por falta de cuenta. Cuando haya cuenta: `real_execution_enabled: true` y `-f markets=es,pe`.
 
 ## Cómo se informa
-<!-- SECCION-C: pendiente del texto del área C -->
-Cada escenario deja en `outputs/runs/<runId>/<mercado>/<escenario>/`:
-- **`results.json`**: el resultado completo, con una entrada por comprobación (identificador, estado, tipo de fallo, motivo, valores leídos y rutas de las evidencias).
-- **`report.html`**: el informe legible, con el resultado de cada comprobación, las capturas y una **galería de lecturas** (qué zona del canvas se leyó y qué texto devolvió el OCR).
-- Un índice de la ejecución en `outputs/runs/<runId>/report.html`.
 
-| Resultado | Significa |
-| --- | --- |
-| **PASS** | Todas las comprobaciones pasan, con evidencia visible |
-| **FAIL** | Fallo de integración (un saldo que no cuadra, una tirada que no se rechaza…) o error de ejecución |
-| **INCONCLUSIVE** | No se pudo leer o verificar con seguridad (`reason: "inconclusive: …"`). Nunca se convierte en PASS |
-| **PROVIDER_UI_CHANGED** | El perfil no reconoce el juego: aviso de que el proveedor cambió su interfaz, no un fallo de Betsson |
-<!-- /SECCION-C -->
+Cada ejecución deja sus resultados en `outputs/runs/<runId>/` (en la CI se publica como artifact):
+
+| Archivo | Qué es |
+|---|---|
+| `outputs/runs/<runId>/report.html` | **Portada**: una tarjeta por escenario y mercado con su resultado, sus avisos (login asistido, juego cambiado, `PROVIDER_UI_CHANGED`) y una tira con lo que leyó en el canvas, más una matriz comprobación × escenario (pasa el ratón para ver el motivo). |
+| `<market>/<S1\|S2>/report.html` | Informe del escenario: avisos, galería **«Lo que vio el comprobador»** (cada lectura con su captura, el texto OCR, el valor interpretado, la confianza y si se vio la moneda), tabla de comprobaciones con motivo, esperado, observado y evidencias. |
+| `<market>/<S1\|S2>/results.json` | Lo mismo en JSON (esquema `RunResult`, `schema_version` 1). |
+
+Campos clave de `results.json`:
+- `outcome`: `PASS` · `FAIL` · `INCONCLUSIVE` · `PROVIDER_UI_CHANGED` (resumen del escenario). `verdict` es su versión binaria (PASS o FAIL).
+- `results[]`: una entrada por comprobación de §3 (`id`, `status` PASS/FAIL, `failure_kind` `integration` | `inconclusive` | `provider_ui_changed`, `reason`, `expected`, `observed`, `evidence[]`).
+- `readings[]`: lo que se leyó en pantalla (juego y web de Betsson), con su captura.
+- `warnings[]`, `error`, `provider` (perfil detectado), `game`, `market`, `run_id`, fechas.
+- Las rutas de evidencia son relativas a la carpeta del escenario. Nunca hay URLs con tokens, rutas locales ni credenciales (y `scan_secrets` lo vigila).
+
+Qué significa cada resultado y cómo se decide:
+- **PASS**: la comprobación se verificó en pantalla. La red y el monedero solo confirman, nunca sustituyen a la pantalla. Un escenario es PASS solo si todas sus comprobaciones lo son.
+- **FAIL** (`integration`): se vio un error real. Por ejemplo: el saldo no cuadra (`después ≠ antes − apuesta + ganancia`, con la tolerancia del mercado), una tirada que no se rechaza con saldo insuficiente, un mensaje en otro idioma o el juego abierto en modo demo. Si hay al menos uno, el escenario es FAIL.
+- **INCONCLUSIVE**: no se pudo verificar con seguridad (OCR dudoso, moneda no vista, sesión caducada, tirada sin fin visible…). Cuenta como FAIL y nunca como un PASS optimista. El motivo empieza por `inconclusive:`.
+- **PROVIDER_UI_CHANGED**: el perfil del proveedor ya no reconoce el juego (deriva del proveedor). Es un aviso de mantenimiento, no un fallo de Betsson. Las comprobaciones de pantalla afectadas llevan ese motivo.
+- Aparte, una **huella por juego** (franja de controles y ruta del juego) avisa de que el juego del proveedor ha cambiado desde la última ejecución buena, con capturas de antes y ahora. No cambia el veredicto.
+- **Login asistido**: si una persona inició la sesión (autorizado por los mentores), `login_ok` lo dice con la hora y el informe lo muestra siempre. El resto es automático.
+
+Apuesta (`BET_STRATEGY`): `step` por defecto, que cambia la apuesta una vez y juega con el nuevo valor. También `min` (baja a la mínima) y `current` (juega con la visible). Si la apuesta no cabe en el saldo, baja a la mínima.
 
 En la CI:
 - las evidencias se publican como artifact `evidencias-<mercado>-<run>`, solo si el escáner de secretos sale en verde;
 - el job `pages` publica el informe web en **https://gitmobau.github.io/Malackaton/** y como artifact `informe-web-<run>`.
 
-Informes guardados de ejemplo, en [`docs/informes/`](docs/informes/):
-- ejecución en **PASS**: _(pendiente)_;
-- ejecución con un **fallo provocado**: _(pendiente)_.
+### Informes guardados
+Índice en [`docs/informes/`](docs/informes/README.md):
+- **Ejecución en PASS**: [`docs/informes/pass-20261015/`](docs/informes/pass-20261015/).
+- **Fallo provocado**: [`docs/informes/fallo-provocado-20261015/`](docs/informes/fallo-provocado-20261015/). Demuestra que el test detecta errores. En la rama `demo/fallo-provocado`, la regla del saldo resta la apuesta dos veces. Resultado: S1 sale FAIL en `ingame_balance_consistent` y `betsson_balance_reconciles`, y fallan 14 tests unitarios. Al revertirlo, todo vuelve a verde. Esa rama nunca llega a `main`.
 
 ## Limitaciones conocidas
 - **Login asistido.** Por decisión del mentor, una persona inicia sesión, porque el antibot de Betsson rechaza el login automatizado. El valor del comprobador está en el análisis del canvas, no en el formulario de login.
