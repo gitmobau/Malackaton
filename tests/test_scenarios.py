@@ -299,3 +299,56 @@ def test_real_play_shows_player_steps_from_betsson(tmp_path: Path) -> None:
     r = by_id(run)[CheckId.REAL_PLAY]
     assert r.status == "PASS" and "límites de sesión" in r.reason
     assert r.evidence == (Path("session_limits_dialog.png"),)
+
+
+def test_assisted_login_is_pass_but_never_hidden(tmp_path: Path) -> None:
+    run = run_s1(tmp_path, site_kw={"login_assisted": True})
+    r = by_id(run)[CheckId.LOGIN_OK]
+    assert r.status == "PASS" and "asistido por una persona" in r.reason
+    assert any("login asistido" in w for w in run.warnings)
+    assert "login asistido" in (tmp_path / "report.html").read_text(encoding="utf-8")
+
+
+def test_autonomous_login_has_no_assisted_warning(tmp_path: Path) -> None:
+    run = run_s1(tmp_path)
+    assert not any("asistido" in w for w in run.warnings)
+
+
+def test_assisted_login_reason_has_time(tmp_path: Path) -> None:
+    from datetime import datetime, timezone
+
+    at = datetime(2026, 10, 15, 14, 5, tzinfo=timezone.utc)
+    run = run_s1(tmp_path, site_kw={"login_assisted": True, "login_assisted_at": at})
+    assert at.astimezone().strftime("%H:%M") in by_id(run)[CheckId.LOGIN_OK].reason
+
+
+def test_assisted_without_session_is_inconclusive_not_failure(tmp_path: Path) -> None:
+    run = run_s1(tmp_path, site_kw={"login_assisted": True, "logged_in": False})
+    r = by_id(run)[CheckId.LOGIN_OK]
+    assert r.failure_kind is FailureKind.INCONCLUSIVE and "caducada o ausente" in r.reason
+    assert run.outcome == "INCONCLUSIVE"
+
+
+def test_report_shows_what_the_checker_saw(tmp_path: Path) -> None:
+    run = run_s1(tmp_path, win=None)
+    names = [r.name for r in run.readings]
+    assert names[:3] == ["Saldo de Betsson antes", "Apuesta", "Saldo del juego antes"]
+    win = next(r for r in run.readings if r.name == "Ganancia")
+    assert win.value is None and "inconclusive" in (win.reason or "")
+    assert all(r.evidence is None or not r.evidence.is_absolute() for r in run.readings)
+    html = (tmp_path / "report.html").read_text(encoding="utf-8")
+    assert "Lo que vio el comprobador" in html and "confianza 98 %" in html and "dudoso" in html
+
+
+def test_s2_report_includes_message_reading(tmp_path: Path) -> None:
+    run = run_s2(tmp_path)
+    msg = next(r for r in run.readings if r.name == "Mensaje en el juego")
+    assert msg.raw_text == "Saldo insuficiente" and msg.value == "idioma es"
+
+
+def test_real_test_never_records_network_trace_har_or_video() -> None:
+    """Con la sesión iniciada la web descarga el perfil completo del cliente (datos personales)."""
+    source = (ROOT / "tests" / "test_real.py").read_text(encoding="utf-8")
+    code = "\n".join(line for line in source.splitlines() if not line.lstrip().startswith(("#", "-", "*")))
+    for banned in ("tracing.start", "start_chunk", "record_har", "record_video", "ChunkedTrace("):
+        assert banned not in code, f"{banned} en test_real.py"

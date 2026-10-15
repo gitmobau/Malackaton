@@ -22,7 +22,15 @@ from betsson.core.interfaces import (
 )
 from betsson.core.money import CurrencyMismatch, Money
 from betsson.core.interfaces import INCONCLUSIVE_PREFIX
-from betsson.core.results import UI_CHANGED_PREFIX, CheckResult, FailureKind, Outcome, RunResult, Status
+from betsson.core.results import (
+    UI_CHANGED_PREFIX,
+    CheckResult,
+    FailureKind,
+    Outcome,
+    RunResult,
+    ScreenReading,
+    Status,
+)
 
 __all__ = [
     "PROVIDER_UI_CHANGED",
@@ -56,5 +64,6 @@ __all__ = [
     "CheckResult",
     "FailureKind",
     "RunResult",
+    "ScreenReading",
     "Status",
 ]

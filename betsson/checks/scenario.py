@@ -14,8 +14,10 @@ import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
+from betsson.checks.common import LOGIN_ASSISTED_WARNING
 from betsson.checks.s1 import S1Observation, evaluate_s1
 from betsson.checks.s2 import S2Observation, evaluate_s2
 from betsson.core import (
@@ -26,11 +28,14 @@ from betsson.core import (
     GameEyesFactory,
     GameOpenError,
     MarketContext,
+    Message,
     ProviderRegistry,
     ProviderUIChanged,
     RunResult,
     Scenario,
+    ScreenReading,
 )
+from betsson.report.fingerprint import BaselineStore, check_drift, take
 from betsson.report.html import render_run
 
 log = logging.getLogger(__name__)
@@ -54,7 +59,11 @@ def _prepare(
     market: MarketContext, slug: str, obs: dict[str, Any], extra: dict[str, Any],
 ) -> GameEyes | None:
     """Login, saldo inicial, apertura del juego y perfil. Devuelve los ojos o None."""
+    # El modo asistido se conoce desde el constructor: se anota antes, por si login() falla.
+    obs["login_assisted"] = bool(site.login_assisted)
     obs["logged_in"] = site.login()
+    # Solo se muestra en el informe: tolerante a un BetssonSite anterior al campo.
+    obs["login_assisted_at"] = getattr(site, "login_assisted_at", None)
     if not obs["logged_in"]:
         return None
     obs["betsson_before"] = site.read_balance()
@@ -69,14 +78,25 @@ def _prepare(
     profile = registry.resolve(handle.iframe_url, handle.capture())
     extra["provider"] = profile.name
     registry.ensure_recognized(profile, handle.capture())  # ProviderUIChanged sube a run_scenario
+    extra["handle"] = handle
     return eyes_factory(handle, profile, market)
 
 
-def _play_s1(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target: BetTarget) -> None:
+def _fingerprint_frame(obs: dict[str, Any], extra: dict[str, Any]) -> None:
+    """Captura para la huella solo cuando el juego ya está listo (se leyó su saldo)."""
+    reading = obs.get("game_before")
+    handle = extra.get("handle")
+    if handle is not None and reading is not None and reading.ok:
+        extra["frame"], extra["iframe_url"] = handle.capture(), handle.iframe_url
+
+
+def _play_s1(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target: BetTarget,
+             on_ready: Callable[[], None]) -> None:
     # El saldo del juego solo se lee ANTES de pulsar girar y DESPUÉS de que la tirada
     # termine (wait_spin_end); nunca a mitad de giro, porque no se sabe cuándo descuenta.
     obs["bet"] = eyes.set_bet(bet_target)
     obs["game_before"] = eyes.read_balance()
+    on_ready()
     obs["spin_started"] = eyes.spin()
     if not obs["spin_started"]:
         return
@@ -89,10 +109,12 @@ def _play_s1(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target:
     obs["betsson_after"] = site.read_balance()
 
 
-def _play_s2(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target: BetTarget) -> None:
+def _play_s2(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target: BetTarget,
+             on_ready: Callable[[], None]) -> None:
     # Cuenta sin saldo: basta la mínima. Cuenta con saldo: bet_target="above_balance".
     obs["bet"] = eyes.set_bet(bet_target)
     obs["game_before"] = eyes.read_balance()
+    on_ready()
     obs["spin_started"] = eyes.spin()
     if obs["spin_started"] and not eyes.wait_spin_end().completed:
         return  # la tirada no debía empezar; sin fin visible no se lee el saldo a mitad de giro
@@ -105,6 +127,37 @@ def _evaluate(scenario: Scenario, obs: dict[str, Any], market: MarketContext) ->
     if scenario is Scenario.S1:
         return evaluate_s1(S1Observation(**obs), market)
     return evaluate_s2(S2Observation(**obs), market)
+
+
+# Lecturas que se enseñan en el informe, en el orden del jugador: (clave en obs, nombre, origen).
+_READINGS = (
+    ("betsson_before", "Saldo de Betsson antes", "betsson"),
+    ("bet", "Apuesta", "juego"),
+    ("game_before", "Saldo del juego antes", "juego"),
+    ("win", "Ganancia", "juego"),
+    ("game_after", "Saldo del juego después", "juego"),
+    ("bet_after", "Apuesta tras la tirada", "juego"),
+    ("message", "Mensaje en el juego", "juego"),
+    ("betsson_after", "Saldo de Betsson después", "betsson"),
+)
+
+
+def _screen_readings(obs: dict[str, Any]) -> tuple[ScreenReading, ...]:
+    out = []
+    for key, name, source in _READINGS:
+        item = obs.get(key)
+        if item is None:
+            continue
+        if isinstance(item, Message):
+            out.append(ScreenReading(name=name, source=source, raw_text=item.text, confidence=item.confidence,
+                                     value=item.lang_detected and f"idioma {item.lang_detected}",
+                                     reason=item.reason, evidence=item.evidence_path))
+        else:
+            out.append(ScreenReading(name=name, source=source, raw_text=item.raw_text,
+                                     value=str(item.money) if item.money else None, confidence=item.confidence,
+                                     currency_seen=item.currency_seen, reason=item.reason,
+                                     evidence=item.evidence_path))
+    return tuple(out)
 
 
 def _relative(path: Path, base: Path, warnings: list[str]) -> Path | None:
@@ -125,18 +178,37 @@ def _with_relative_evidence(run: RunResult, base: Path) -> RunResult:
     warnings = list(run.warnings)
     results = tuple(r.model_copy(update={"evidence": _relative_all(r.evidence, base, warnings)}) for r in run.results)
     evidence = _relative_all(run.evidence, base, warnings)
-    return run.model_copy(update={"results": results, "evidence": evidence, "warnings": tuple(dict.fromkeys(warnings))})
+    readings = tuple(
+        r.model_copy(update={"evidence": _relative(r.evidence, base, warnings) if r.evidence else None})
+        for r in run.readings
+    )
+    return run.model_copy(update={"results": results, "evidence": evidence, "readings": readings,
+                                  "warnings": tuple(dict.fromkeys(warnings))})
+
+
+def _with_drift(run: RunResult, baselines: BaselineStore, extra: dict[str, Any], out_dir: Path) -> RunResult:
+    """Aviso si el juego cambió desde la última ejecución buena. Solo un PASS actualiza la referencia."""
+    try:
+        fp = take(extra["frame"], iframe_url=extra["iframe_url"], market=run.market, game=run.game or "",
+                  provider=run.provider, run_id=run.run_id)
+        warnings, evidence = check_drift(baselines, extra["frame"], fp, out_dir, update=run.outcome == "PASS")
+    except Exception as exc:  # la huella es un extra: nunca debe tumbar el resultado
+        log.exception("huella del juego")
+        return run.model_copy(update={"warnings": (*run.warnings, f"huella no disponible: {safe_error(exc)}")})
+    return run.model_copy(update={"warnings": (*run.warnings, *warnings), "evidence": (*run.evidence, *evidence)})
 
 
 def _collect(scenario: Scenario, site: BetssonSite, registry: ProviderRegistry, eyes_factory: GameEyesFactory,
              market: MarketContext, slug: str, bet_target: BetTarget) -> tuple[dict[str, Any], dict[str, Any]]:
     """Ejecuta los pasos. Devuelve (observación, extra con provider/error/evidence)."""
     obs: dict[str, Any] = {}
-    extra: dict[str, Any] = {"provider": None, "error": None, "evidence": ()}
+    extra: dict[str, Any] = {"provider": None, "error": None, "evidence": (), "frame": None, "iframe_url": None,
+                             "handle": None}
     try:
         eyes = _prepare(site, registry, eyes_factory, market, slug, obs, extra)
         if eyes is not None:
-            (_play_s1 if scenario is Scenario.S1 else _play_s2)(eyes, site, obs, bet_target)
+            play = _play_s1 if scenario is Scenario.S1 else _play_s2
+            play(eyes, site, obs, bet_target, lambda: _fingerprint_frame(obs, extra))
     except ProviderUIChanged as exc:
         obs["ui_changed"] = safe_error(exc.reason)
         extra["evidence"] = tuple(exc.evidence)
@@ -157,6 +229,7 @@ def run_scenario(
     out_dir: Path,
     run_id: str,
     bet_target: BetTarget = "min",
+    baselines: BaselineStore | None = None,
 ) -> RunResult:
     """Ejecuta un escenario en un mercado y deja results.json y report.html en out_dir."""
     if scenario is Scenario.S1 and bet_target != "min":
@@ -164,6 +237,8 @@ def run_scenario(
     started = datetime.now(timezone.utc)
     obs, extra = _collect(scenario, site, registry, eyes_factory, market, slug, bet_target)
     warnings = [f"PROVIDER_UI_CHANGED: {obs['ui_changed']}"] if obs.get("ui_changed") else []
+    if obs.get("login_assisted"):
+        warnings.insert(0, LOGIN_ASSISTED_WARNING)
     error = extra["error"]
     try:
         results = tuple(_evaluate(scenario, obs, market))
@@ -174,8 +249,10 @@ def run_scenario(
     run = RunResult(
         run_id=run_id, market=market.id, scenario=scenario, provider=extra["provider"], game=slug,
         started_at=started, finished_at=datetime.now(timezone.utc), results=results,
-        warnings=tuple(warnings), error=error, evidence=extra["evidence"],
+        warnings=tuple(warnings), error=error, evidence=extra["evidence"], readings=_screen_readings(obs),
     )
+    if baselines is not None and extra["frame"] is not None:
+        run = _with_drift(run, baselines, extra, out_dir)
     run = _with_relative_evidence(run, out_dir)
     run.write_json(out_dir / RESULTS_FILE)
     try:

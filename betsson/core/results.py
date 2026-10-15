@@ -89,6 +89,21 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class ScreenReading(BaseModel):
+    """Lo que vio el comprobador en pantalla (juego o web de Betsson), para el informe."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str  # "Saldo del juego antes", "Apuesta", "Mensaje"…
+    source: Literal["juego", "betsson"]
+    raw_text: str = ""
+    value: str | None = None  # importe interpretado ("99.80 EUR") o None si fue dudoso
+    confidence: float | None = None
+    currency_seen: bool | None = None
+    reason: str | None = None
+    evidence: EvidencePath | None = None
+
+
 class RunResult(BaseModel):
     """Un escenario en un mercado: lo que se escribe en results.json."""
 
@@ -106,6 +121,7 @@ class RunResult(BaseModel):
     warnings: tuple[str, ...] = ()  # p. ej. "PROVIDER_UI_CHANGED: …", "mercado configurado sin cuenta"
     error: str | None = None  # la ejecución se cortó (timeout, crash del navegador…): el run es FAIL
     evidence: tuple[EvidencePath, ...] = ()  # vídeo, traza, capturas generales (relativas al run)
+    readings: tuple[ScreenReading, ...] = ()  # lo que se leyó en pantalla, en orden
 
     @model_validator(mode="after")
     def _valid_checks(self) -> RunResult:

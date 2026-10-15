@@ -9,6 +9,7 @@ Ningún nombre de proveedor aparece aquí. Las zonas van en fracciones del canva
 """
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, Literal, Protocol, runtime_checkable
@@ -233,6 +234,12 @@ class GameEyesFactory(Protocol):
 @runtime_checkable
 class BetssonSite(Protocol):
     """La web de Betsson. Las credenciales se leen del entorno dentro de A, nunca llegan aquí."""
+
+    # Login asistido (autorizado por los mentores): una persona inicia sesión en un Chrome
+    # normal y el comprobador reutiliza esa sesión. True desde el constructor si el modo es
+    # asistido (aunque luego no haya sesión). El informe lo muestra, nunca se oculta.
+    login_assisted: bool
+    login_assisted_at: datetime | None  # cuándo inició sesión la persona, si se sabe
 
     def login(self) -> bool:
         """Inicia sesión con la cuenta de prueba (traza pausada, campos tapados)."""
