@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
+import time
 from functools import lru_cache
 from pathlib import Path
 
@@ -21,10 +22,11 @@ import betsson.profiles as profiles_pkg
 from betsson.core import ProviderUIChanged
 from betsson.profiles.base import ProfileSpec
 from betsson.vision.anchors import find_amount
-from betsson.vision.ocr import read_text
+from betsson.vision.ocr import full_text, normalize, read_text
 
 FALLBACK_PROFILE = "generic-vision"
 MIN_CONFIDENCE = 0.5
+RESOLVE_TIMEOUT_S = 30.0  # resolve_handle: tiempo máximo recapturando mientras el juego carga
 # Lo mínimo que tiene que verse para decir que el perfil reconoce el juego.
 _REQUIRED_FIELDS = ("balance", "bet")
 # Recalibración: si a tamaño real no se ven las etiquetas, se prueba ampliando.
@@ -76,17 +78,29 @@ def missing_fields(profile: ProfileSpec, frame: np.ndarray) -> list[str]:
     return missing
 
 
+def shows_own_intro(profile: ProfileSpec, frame: np.ndarray) -> bool:
+    """True si el frame es una pantalla de inicio de ESTE perfil: sus textos y su imagen propia a la vez.
+
+    El texto solo no basta ("NO VOLVER A MOSTRAR" lo usan varios proveedores): hace falta también detect().
+    """
+    if not profile.intro_screens or profile.detect("", frame) < MIN_CONFIDENCE:
+        return False
+    text = normalize(full_text(read_text(frame)))
+    return any(normalize(t) in text for screen in profile.intro_screens for t in screen.match_texts)
+
+
 def ensure_recognized(
     profile: ProfileSpec, frame: np.ndarray | None, evidence_dir: Path | None = None
 ) -> None:
     """Lanza ProviderUIChanged si el perfil no reconoce la pantalla (ni recalibrando).
 
-    `frame` es la captura del canvas en BGR (GameEyes) o RGB (GameHandle.capture): el OCR lee ambas.
+    Reconoce el juego (se ven saldo y apuesta) o una de sus propias pantallas de inicio: GameEyes la
+    cierra después (dismiss_intro en la factoría). `frame` en BGR.
     """
     if frame is None:
         raise ProviderUIChanged(f"sin captura del juego para comprobar el perfil '{profile.name}'")
     missing = missing_fields(profile, frame)
-    if not missing:
+    if not missing or shows_own_intro(profile, frame):
         return
     evidence: list[Path] = []
     if evidence_dir is not None:
@@ -99,17 +113,34 @@ def ensure_recognized(
     )
 
 
+def _to_bgr(frame: np.ndarray | None) -> np.ndarray | None:
+    """core.GameHandle.capture() da RGB; el motor (OpenCV) trabaja en BGR."""
+    return None if frame is None else cv2.cvtColor(np.ascontiguousarray(frame), cv2.COLOR_RGB2BGR)
+
+
 class Registry:
-    """Implementación de betsson.core.ProviderRegistry para inyectar en run_scenario."""
+    """Implementación de betsson.core.ProviderRegistry para inyectar en run_scenario.
+
+    Recibe las capturas del GameHandle (RGB, como dice core) y las pasa a BGR.
+    """
 
     def __init__(self, evidence_dir: Path | None = None) -> None:
         self.evidence_dir = evidence_dir
 
     def resolve(self, iframe_url: str, frame: np.ndarray | None) -> ProfileSpec:
-        return resolve(iframe_url, frame)
+        return resolve(iframe_url, _to_bgr(frame))
+
+    def resolve_handle(self, handle, timeout_s: float = RESOLVE_TIMEOUT_S) -> ProfileSpec:  # noqa: ANN001 - GameHandle
+        """resolve() recapturando hasta reconocer un proveedor o agotar el tiempo (el juego aún puede estar
+        cargando). Sin reconocerlo, generic-vision. Nunca lanza."""
+        start = time.monotonic()
+        while True:
+            profile = self.resolve(handle.iframe_url, handle.capture())
+            if profile.name != FALLBACK_PROFILE or time.monotonic() - start >= timeout_s:
+                return profile
 
     def ensure_recognized(self, profile: ProfileSpec, frame: np.ndarray | None) -> None:
-        ensure_recognized(profile, frame, self.evidence_dir)
+        ensure_recognized(profile, _to_bgr(frame), self.evidence_dir)
 
 
 REGISTRY = Registry()

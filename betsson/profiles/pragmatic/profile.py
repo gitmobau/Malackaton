@@ -12,7 +12,9 @@ PROFILE = ProfileSpec(
     name="pragmatic",
     url_patterns=[r"pragmaticplay\.net", r"/gs2c/", r"ppgames\.net"],
     # El botón redondo del gorila (girar en juego y continuar en la presentación) es de este estudio.
-    detect_templates=[ASSETS / "spin.png", ASSETS / "intro_continue.png"],
+    # gorilla.png es solo la cara: en la presentación las flechas giran mientras carga (run real del
+    # 15-oct, 17:15) y el botón entero dejaba de coincidir; la cara no gira.
+    detect_templates=[ASSETS / "spin.png", ASSETS / "intro_continue.png", ASSETS / "gorilla.png"],
     intro_screens=[
         # Logo del estudio mientras carga: no se pulsa nada, se espera.
         IntroStep(

@@ -5,10 +5,19 @@ Más adelante, VisionProvider (IA con visión, opcional) localizará aquí el bo
 from __future__ import annotations
 
 from betsson.core import Rect
-from betsson.profiles.base import ProfileSpec
+from betsson.profiles.base import IntroStep, ProfileSpec
 
 PROFILE = ProfileSpec(
     name="generic-vision",
+    # Presentación típica: casilla "no volver a mostrar" y botón continuar. Si no se lee el botón, centro abajo.
+    intro_screens=[
+        IntroStep(
+            name="presentacion",
+            match_texts=("NO VOLVER A MOSTRAR", "DON'T SHOW AGAIN", "DO NOT SHOW", "PULSA PARA CONTINUAR"),
+            click_text="CONTINUAR",
+            click=Rect(x=0.40, y=0.70, w=0.20, h=0.15),
+        ),
+    ],
     labels={
         "balance": {"es": ["SALDO", "CRÉDITO", "BALANCE"], "en": ["BALANCE", "CREDIT", "CASH"]},
         "bet": {"es": ["APUESTA", "APUESTA TOTAL"], "en": ["BET", "TOTAL BET", "STAKE"]},

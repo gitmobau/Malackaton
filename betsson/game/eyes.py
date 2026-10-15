@@ -216,10 +216,17 @@ class GameEyes:
     # ---------- inicio ----------
 
     def dismiss_intro(self) -> list[str]:
-        """Cierra las pantallas de inicio que reconozca. Devuelve las que cerró, en orden."""
+        """Cierra las pantallas de inicio que reconozca y espera a ver el juego listo (etiqueta de saldo).
+
+        Devuelve las que cerró, en orden. Si el saldo no aparece a tiempo, lo deja en notes (el registro
+        o la lectura dirán después que no se reconoce: nunca se supone que el juego está listo).
+        """
         dismissed: list[str] = []
-        for _ in range(_MAX_INTRO_STEPS):
+        start = time.monotonic()
+        while time.monotonic() - start < _LOADING_TIMEOUT_S and len(dismissed) < _MAX_INTRO_STEPS:
             frame = self._source.grab()
+            if self._find("balance", frame) is not None:
+                return dismissed  # juego listo
             boxes = read_text(frame)
             text = normalize(full_text(boxes))
             screen = next(
@@ -227,13 +234,14 @@ class GameEyes:
                 None,
             )
             if screen is None:
-                break
+                continue  # aún cargando: cada vuelta es una captura y un OCR, el ritmo lo marca la señal
             if screen.wait_only:
                 self._wait_for_change(frame, _LOADING_TIMEOUT_S)
             else:
                 self._source.click(*self._intro_target(screen, frame, boxes))
                 self._wait_for_change(frame, self.profile.spin_end.start_timeout_s)
             dismissed.append(screen.name)
+        self.notes.append("inconclusive: tras las pantallas de inicio no apareció el saldo del juego")
         return dismissed
 
     def _intro_target(self, screen: IntroStep, frame: np.ndarray, boxes: list[TextBox]) -> tuple[float, float]:

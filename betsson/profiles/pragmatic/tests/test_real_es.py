@@ -112,3 +112,54 @@ def test_s2_sin_texto_del_boton_usa_la_pista_del_perfil(profile: ProfileSpec) ->
     assert message.matches_insufficient is True and message.reason is None
     ((fx, fy),) = source.clicks
     assert contains(blind.message_dismiss_hint, (fx, fy))
+
+
+# --- Run real del 15-oct (17:15): resolve() en la presentación con las flechas del gorila girando ---
+
+PRESENTATION = REAL / "s1" / "00_presentacion_cargando.png"
+
+
+def test_resolve_reconoce_la_presentacion_real(profile: ProfileSpec) -> None:
+    frame = read_image(PRESENTATION)
+    assert resolve("srcdoc", frame).name == "pragmatic"
+
+
+def test_registry_recibe_rgb_del_handle_y_reconoce(profile: ProfileSpec) -> None:
+    from betsson.profiles.registry import REGISTRY
+
+    rgb = read_image(PRESENTATION)[:, :, ::-1]  # GameHandle.capture() da RGB
+    assert REGISTRY.resolve("srcdoc", rgb).name == "pragmatic"
+    REGISTRY.ensure_recognized(profile, rgb)  # su propia presentación cuenta como reconocida
+
+
+class _FakeHandle:
+    """GameHandle mínimo: primero carga (ruido) y después la presentación."""
+
+    iframe_url = "srcdoc"
+
+    def __init__(self, frames: list) -> None:  # noqa: ANN001
+        self._frames, self._i = frames, 0
+
+    def capture(self):  # noqa: ANN201
+        frame = self._frames[min(self._i, len(self._frames) - 1)]
+        self._i += 1
+        return frame
+
+
+def test_resolve_handle_reintenta_mientras_carga() -> None:
+    import numpy as np
+
+    from betsson.profiles.registry import REGISTRY
+
+    loading = np.zeros((651, 1158, 3), dtype=np.uint8)
+    handle = _FakeHandle([loading, loading, read_image(PRESENTATION)[:, :, ::-1]])
+    assert REGISTRY.resolve_handle(handle, timeout_s=30).name == "pragmatic"
+    assert REGISTRY.resolve_handle(_FakeHandle([loading]), timeout_s=0.5).name == "generic-vision"
+
+
+def test_dismiss_intro_espera_al_juego_listo(profile: ProfileSpec) -> None:
+    intro, game = read_image(PRESENTATION), read_image(REAL / "s1" / "01_reposo_apuesta_2.png")
+    source = FileFrameSource([intro, intro, game])
+    eyes = GameEyes(source, profile, load_market("es"))
+    assert eyes.dismiss_intro() == ["presentacion"]
+    assert not [n for n in eyes.notes if n.startswith("inconclusive")]
