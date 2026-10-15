@@ -63,19 +63,45 @@ class CredentialsEnv(_Strict):
 class SessionLimitsConfig(_Strict):
     """Diálogo de límites de sesión que exige el regulador antes de jugar (p. ej. la DGOJ en es).
 
-    Se elige siempre lo más prudente: poco tiempo y el límite de pérdidas más bajo. Textos como regex.
+    Las opciones a pulsar salen de aquí (nada fijo en el código). Textos como regex.
     """
 
     title_pattern: str = Field(min_length=1, description="Detecta el diálogo por su título visible.")
     time_option_pattern: str = Field(min_length=1, description="Botón de tiempo de juego a pulsar.")
     loss_option_pattern: str = Field(min_length=1, description="Botón de límite de pérdidas a pulsar.")
     submit_pattern: str = Field(min_length=1, description="Botón que confirma e inicia la sesión de juego.")
+    session_hours: float = Field(
+        default=0.25, gt=0, le=24, description="Duración de la sesión de juego que se elige (para saber si sigue activa)."
+    )
+    existing_session_pattern: str | None = Field(
+        default=None, description="Aviso de que ya hay una sesión de juego activa: se anota como motivo, no es FAIL."
+    )
+
+
+class BrowserSessionConfig(_Strict):
+    """Sesión de jugador iniciada A MANO en un Chrome normal, que el comprobador reutiliza por CDP.
+
+    Un puerto de depuración por cuenta ("funded" con saldo, "empty" sin saldo). El perfil de Chrome
+    vive fuera del repo (<raíz>/.chrome-profiles/<mercado>-<cuenta>) y equivale a una credencial.
+    """
+
+    cdp_ports: dict[Literal["funded", "empty"], int] = Field(min_length=1)
+
+    @field_validator("cdp_ports")
+    @classmethod
+    def _valid_ports(cls, v: dict[str, int]) -> dict[str, int]:
+        if any(not 1024 <= port <= 65535 for port in v.values()) or len(set(v.values())) != len(v):
+            raise ValueError("puertos CDP no válidos o repetidos")
+        return v
 
 
 class SiteConfig(_Strict):
     """Lo de la web de Betsson que puede cambiar por mercado. Lo común está en betsson/site/selectors.py."""
 
     casino_path: str = "/casino"
+    browser_session: BrowserSessionConfig | None = Field(
+        default=None, description="None si en este mercado no se usa la sesión iniciada a mano."
+    )
     session_limits: SessionLimitsConfig | None = Field(
         default=None, description="None si el mercado no pide límites de sesión antes de jugar."
     )
