@@ -201,7 +201,7 @@ Principios:
 | Oracle | Pedir **ya** una cuenta (un miembro con correo `@uma.es`). Es un seguro, no una dependencia |
 | Git | Ramas `feat/<área>-<tema>`, PR pequeño, 1 revisión, squash merge, main protegida, fusiones en los hitos |
 | Idioma | Código en inglés; documentación e informe en español (el informe puede ser bilingüe) |
-| Áreas | **A: Maiki** (también coordina `docs/`) · **B: Alejandro** · **C: Migue** · **D: Guilli** (su portátil hace de runner) |
+| Áreas | **A: Maiki** (también coordina `docs/`) · **B: Alejandro** · **C: Migue** · **D: Guilli** (el runner de CI va en el portátil de Maiki) |
 
 ### Aplazadas
 | Decisión | Límite |
