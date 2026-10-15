@@ -1,0 +1,23 @@
+# Lo mínimo para el comprobador de Betsson (tests sin red, ejecución real, informe y escáner).
+# Versiones exactas con las que pasó la entrega del 15-oct: requirements-betsson.lock.
+#   pip install -r requirements-betsson.txt -c requirements-betsson.lock
+# El resto de librerías del hackathon (pandas, duckdb, streamlit…) están en requirements.txt.
+
+# Navegador y tests
+playwright
+pytest
+pytest-playwright
+
+# Ojos sobre el juego: OCR, imagen y hash perceptual
+opencv-python
+# rapidocr-onnxruntime (1.x) exige Python < 3.13: rapidocr v3 con onnxruntime (rueda cp314)
+rapidocr>=3
+onnxruntime
+imagehash
+numpy
+pillow
+
+# Contratos, configuración e informe
+pydantic
+jinja2
+python-dotenv

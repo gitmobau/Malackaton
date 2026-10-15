@@ -78,10 +78,12 @@ Los contratos de `betsson/core/` (modelos pydantic y `Protocol`) son el único p
 git clone https://github.com/gitmobau/Malackaton.git D:\Malackaton
 cd D:\Malackaton
 py -3 -m venv .venv; .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -r requirements-betsson.txt -c requirements-betsson.lock
 python -m playwright install chromium
 pytest -m unit   # tests sin red: OCR sobre capturas, parse_money, contratos y perfiles
 ```
+
+- `requirements-betsson.txt`: lo mínimo para el comprobador. `requirements-betsson.lock`: las versiones exactas con las que pasó la entrega (Python 3.14). `requirements.txt` añade el resto de librerías del hackathon y `requirements.lock` es el `pip freeze` completo, solo como referencia.
 
 Más detalles para dejar el portátil listo en [Preparar el portátil](#preparar-el-portátil-todo-en-d).
 
