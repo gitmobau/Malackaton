@@ -62,7 +62,8 @@ def _prepare(
     # El modo asistido se conoce desde el constructor: se anota antes, por si login() falla.
     obs["login_assisted"] = bool(site.login_assisted)
     obs["logged_in"] = site.login()
-    obs["login_assisted_at"] = site.login_assisted_at
+    # Solo se muestra en el informe: tolerante a un BetssonSite anterior al campo.
+    obs["login_assisted_at"] = getattr(site, "login_assisted_at", None)
     if not obs["logged_in"]:
         return None
     obs["betsson_before"] = site.read_balance()
