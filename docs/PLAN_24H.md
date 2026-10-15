@@ -13,12 +13,31 @@
 | **A, Betsson web y mercados**: **Maiki** (portátil del coordinador) | Cookies, login, saldo de Betsson, búsqueda y apertura del juego en Real Play. **Multimercado**: esquema de configuración, `es`/`com`/`pe`, `parse_money` y sus tests. **Coordinación**: mantiene `docs/` al día | `betsson/site/`, `betsson/market/`, `config/markets/`, `docs/` |
 | **B, ojos sobre el juego y proveedores**: **Alejandro** | Motor genérico (OCR, comparación de imágenes, plantillas, visión con IA opcional), **perfiles de proveedor enchufables** (Pragmatic primero, después `generic-vision` y un segundo proveedor), detección de la tirada y de su fin, mensaje de saldo insuficiente | `betsson/game/`, `betsson/vision/`, `betsson/profiles/`, `fixtures/<proveedor>/` |
 | **C, escenarios e informe**: **Migue** | Contratos, comprobaciones, regla del saldo, `results.json`, informe HTML, evidencias | `betsson/core/` (contratos: dueño único), `betsson/checks/`, `betsson/report/`, `tests/` |
-| **D, CI e infraestructura**: **Guilli** | Esqueleto, workflow, runner propio en España (su portátil, que **no** puede ser el de Maiki), secretos, Oracle, Pages, README y demo | raíz, `.github/`, `requirements.txt`, `pytest.ini`, `setup-portatil.ps1` |
+| **D, CI e infraestructura**: **Guilli** | Esqueleto, workflow, runner propio en España (en el portátil de Maiki, como servicio aparte; lanzar la CI cuando A y B no estén con el navegador), secretos, Oracle, Pages, README y demo | raíz, `.github/`, `requirements.txt`, `pytest.ini`, `setup-portatil.ps1` |
 
 Reglas:
 - **Extensibilidad**: la palabra "pragmatic" solo puede aparecer dentro de `profiles/pragmatic/` y `fixtures/pragmatic/`. Escenarios y comprobaciones hablan solo con `ProviderProfile`.
 - Los contratos (`betsson/core/`) solo los cambia C; `requirements.txt` y `pytest.ini`, solo D. Los demás piden el cambio por PR, con un motivo de una línea.
 - Las dependencias nuevas se añaden en los hitos.
+
+## Modo de trabajo: un solo portátil (decisión del 15-oct)
+
+Las 4 sesiones de Claude corren en **el portátil de Maiki**, una por área, cada una en **su propio worktree de git** (misma historia, carpeta y rama distintas). Cada miembro se conecta a su sesión con **Remote Control** (`/remote-control`). Si nos atascamos (CPU, límites de uso, navegadores), se pasa un área a un segundo portátil con el mismo repo.
+
+| Área | Carpeta (worktree) | Rama |
+|---|---|---|
+| A, Maiki | `D:\MAIKI\Malackathonrea-A-maiki` | `feat/A-betsson-web` |
+| B, Alejandro | `D:\MAIKI\Malackathonrea-B-alejandro` | `feat/B-vision` |
+| C, Migue | `D:\MAIKI\Malackathonrea-C-migue` | `feat/C-core` |
+| D, Guilli | `D:\MAIKI\Malackathonrea-D-guilli` | `feat/D-infra` |
+| Coordinador | `D:\MAIKI\Malackathon\equipo` | `docs/...`, revisión de PR |
+
+Reglas del modo de un portátil:
+- **Nunca** abrir dos sesiones en la misma carpeta. Cada sesión, solo en su worktree.
+- Un **único `.venv` compartido** en `D:\MAIKI\Malackathon\.venv` (lo crea D con `requirements.txt`).
+- Navegadores: A y B usan ventanas propias. Las ejecuciones largas (CI o la suite completa) se avisan por el chat del equipo.
+- Límite de uso compartido: usar subagentes con medida y `/compact` al cambiar de tarea.
+- Para integrar: cada área sube su rama (`git push -u origin <rama>`) y abre su PR. Para traer lo de los demás: `git fetch` y `git merge origin/main`.
 
 ## Arranque en paralelo (los 4 a la vez, cada uno con su sesión de Claude)
 
