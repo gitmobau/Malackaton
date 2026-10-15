@@ -95,7 +95,7 @@ Workflow `.github/workflows/validacion.yml` ("Validación de juegos"):
 - Antes de publicar el artifact, `.github/scripts/scan_secrets.py` busca las credenciales en `outputs/`. Si encuentra alguna, no se publica nada. Las trazas y los vídeos quedan fuera del artifact hasta que el login esté tapado.
 - **Informe web**: tras una ejecución a mano, el job `pages` genera `index.html` con el resumen PASS/FAIL y los enlaces a `report.html` y `results.json` de cada mercado (`.github/scripts/build_pages.py`). Solo usa evidencias que ya pasaron el escáner de secretos y nunca publica trazas ni vídeos. Siempre se sube como artifact `informe-web-<runId>-<intento>`.
 - **GitHub Pages**: el plan de la cuenta no lo permite en un repo privado (HTTP 422). Si el repo pasa a público o la cuenta a Pro: *Settings → Pages → Source: GitHub Actions* y variable del repo `PAGES_ENABLED=true`. Ojo: la web de Pages es pública.
-- **Probar el despliegue sin gastar saldo**: `gh workflow run "Validación de juegos" -R gitmobau/Malackaton -f markets=` (ningún mercado activo: no abre Chrome).
+- **Probar el despliegue sin gastar saldo**: `gh workflow run "Validación de juegos" -R gitmobau/Malackaton -f markets=ninguno` (ningún mercado activo: no abre Chrome).
 - `.github/CODEOWNERS`: el equipo usa una única cuenta compartida (`gitmobau`), así que todo es suyo. El reparto por áreas queda documentado en comentarios.
 
 ## Sesiones en la nube

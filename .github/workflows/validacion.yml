@@ -56,7 +56,8 @@ jobs:
       MARKET: ${{ matrix.market }}
       RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       # Activo solo si está en la lista (sin espacios: "es,com"); el input vale "es" por defecto.
-      # Vacío = ningún mercado: sirve para probar el despliegue sin abrir Chrome ni gastar saldo.
+      # "ninguno" = ningún mercado (vacío no vale: GitHub lo cambia por el valor por defecto).
+      # Sirve para probar el despliegue sin abrir Chrome ni gastar saldo.
       # com y pe: configurados, sin cuenta.
       ENABLED: ${{ contains(format(',{0},', github.event.inputs.markets), format(',{0},', matrix.market)) }}
       VENV_PY: ${{ vars.VENV_PY || 'D:\MAIKI\Malackathon\.venv\Scripts\python.exe' }}
