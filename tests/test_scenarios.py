@@ -363,3 +363,19 @@ def test_index_cover_has_matrix_tiles_and_flags(tmp_path: Path) -> None:
     assert "Login asistido por una persona" in html
     assert "PASS: 1" in html and "INCONCLUSIVE: 1" in html
     assert 'class="strip"' in html and "S1/game_bet.png" in html
+
+
+def test_index_counts_unreadable_results_as_fail(tmp_path: Path) -> None:
+    run_s1(tmp_path / "es" / "S1")
+    bad = tmp_path / "es" / "S2"
+    bad.mkdir(parents=True)
+    (bad / "results.json").write_text("roto", encoding="utf-8")
+    html = render_index(tmp_path).read_text(encoding="utf-8")
+    assert "FAIL: 1" in html and "PASS: 1" in html
+
+
+def test_index_s2_strip_shows_message_first(tmp_path: Path) -> None:
+    run_s2(tmp_path / "es" / "S2")
+    html = render_index(tmp_path).read_text(encoding="utf-8")
+    strip = html.split('class="strip"', 1)[1]
+    assert strip.index("S2/message.png") < strip.index("S2/game_bet.png")

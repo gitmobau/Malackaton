@@ -5,6 +5,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from betsson.checks.common import LOGIN_ASSISTED_WARNING
 from betsson.core import CheckId, RunResult
 
 TEMPLATES = Path(__file__).parent / "templates"
@@ -19,6 +20,7 @@ _env = Environment(
 )
 _env.filters["posix"] = lambda p: Path(p).as_posix()
 _env.tests["image"] = lambda p: Path(p).suffix.lower() in IMAGE_SUFFIXES
+_env.globals["LOGIN_ASSISTED_WARNING"] = LOGIN_ASSISTED_WARNING
 
 
 def render_run(run: RunResult, out_dir: Path) -> Path:
@@ -51,6 +53,9 @@ def _matrix(entries: list[dict]) -> dict:
     outcomes: dict[str, int] = {}
     for e in runs:
         outcomes[e["run"].outcome] = outcomes.get(e["run"].outcome, 0) + 1
+    unreadable = len(entries) - len(runs)
+    if unreadable:  # un results.json roto nunca deja la portada en verde
+        outcomes["FAIL"] = outcomes.get("FAIL", 0) + unreadable
     return {"columns": runs, "rows": rows, "outcomes": outcomes}
 
 
