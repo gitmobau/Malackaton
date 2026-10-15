@@ -42,6 +42,7 @@ from betsson.report.html import render_run
 log = logging.getLogger(__name__)
 
 RESULTS_FILE = "results.json"
+NOTICE_VALUE = "aviso visible"  # un aviso no es una lectura dudosa
 MAX_ERROR_CHARS = 300
 _URL = re.compile(r"https?://\S+")
 _PATH = re.compile(r"(?:[A-Za-z]:[\\/]|\\\\|/(?:home|Users|tmp|var|mnt|d|c)/)\S*")
@@ -78,11 +79,27 @@ def _prepare(
     # Avisos de Betsson al abrir (p. ej. la DGOJ sin saldo). Tolerante a un GameHandle sin el campo.
     extra["notices"] = tuple(getattr(handle, "notices", ()) or ())
     obs["open_evidence"] = tuple(handle.evidence)
-    profile = registry.resolve(handle.iframe_url, handle.capture())
-    extra["provider"] = profile.name
-    registry.ensure_recognized(profile, handle.capture())  # ProviderUIChanged sube a run_scenario
     extra["handle"] = handle
-    return eyes_factory(handle, profile, market)
+    return _recognized_eyes(handle, registry, eyes_factory, market, extra)
+
+
+def _recognized_eyes(handle: Any, registry: ProviderRegistry, eyes_factory: GameEyesFactory,
+                     market: MarketContext, extra: dict[str, Any]) -> GameEyes:
+    """Perfil en dos pasos, porque la intro del juego tapa la pantalla de juego:
+    1) primer perfil con lo que se ve al abrir (sirve para cerrar su intro);
+    2) los ojos cierran la intro; se resuelve otra vez con el juego listo y, si cambia
+       el perfil, se rehacen los ojos con el bueno;
+    3) solo entonces ensure_recognized (ProviderUIChanged sube a run_scenario).
+    """
+    profile = registry.resolve(handle.iframe_url, handle.capture())
+    eyes = eyes_factory(handle, profile, market)
+    ready = registry.resolve(handle.iframe_url, handle.capture())
+    if ready.name != profile.name:
+        log.info("perfil tras la intro: %s (antes %s)", ready.name, profile.name)
+        profile, eyes = ready, eyes_factory(handle, ready, market)
+    extra["provider"] = profile.name
+    registry.ensure_recognized(profile, handle.capture())
+    return eyes
 
 
 def _fingerprint_frame(obs: dict[str, Any], extra: dict[str, Any]) -> None:
@@ -152,8 +169,8 @@ def _notice_reading(notice: Any) -> ScreenReading:
     """Aviso de Betsson: Notice(text, evidence_path) o, durante la transición, un str."""
     if isinstance(notice, Notice):
         return ScreenReading(name="Aviso de Betsson", source="betsson", raw_text=notice.text,
-                             evidence=notice.evidence_path)
-    return ScreenReading(name="Aviso de Betsson", source="betsson", raw_text=str(notice))
+                             value=NOTICE_VALUE, evidence=notice.evidence_path)
+    return ScreenReading(name="Aviso de Betsson", source="betsson", raw_text=str(notice), value=NOTICE_VALUE)
 
 
 def _screen_readings(obs: dict[str, Any], notices: tuple[Any, ...] = ()) -> tuple[ScreenReading, ...]:
