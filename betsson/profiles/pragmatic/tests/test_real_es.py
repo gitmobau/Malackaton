@@ -164,3 +164,25 @@ def test_dismiss_intro_espera_al_juego_listo(profile: ProfileSpec) -> None:
     eyes = GameEyes(source, profile, load_market("es"))
     assert eyes.dismiss_intro() == ["presentacion"]
     assert not [n for n in eyes.notes if n.startswith("inconclusive")]
+
+
+# --- Run real S2 del 15-oct (17:48): la ventana "Fondos insuficientes" se tomó por inicio de tirada ---
+
+
+def test_s2_spin_rechazada_si_aparece_la_ventana_del_mensaje(profile: ProfileSpec) -> None:
+    s2 = REAL / "s2"
+    before = read_image(s2 / "03_antes_de_pulsar_panel_apuesta.png")
+    fading = read_image(s2 / "04_ventana_apareciendo.png")
+    message = read_image(s2 / "02_mensaje_fondos_insuficientes.png")
+    source = FileFrameSource([before, fading, message])
+    eyes = GameEyes(source, profile, load_market("es"))
+    assert eyes.spin() is False
+    assert any("rechazada" in n for n in eyes.notes)
+    end = eyes.wait_spin_end()  # no se queda esperando una tirada que no hubo
+    assert not end.completed and end.duration_s < 1
+
+
+def test_s1_una_tirada_de_verdad_sigue_contando_como_iniciada(profile: ProfileSpec) -> None:
+    s1 = REAL / "s1"
+    source = FileFrameSource([read_image(s1 / "02_apuesta_min.png"), read_image(s1 / "03_girando.png")])
+    assert GameEyes(source, profile, load_market("es")).spin() is True
