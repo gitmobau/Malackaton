@@ -1,21 +1,225 @@
-# Malackaton
+# Betsson Intelligent Game Validation · Malackathon 2026
 
-Repositorio del equipo para la **Malachathon** (Málaga). Retos y orden de preferencia en
-[`docs/retos.md`](docs/retos.md). Instrucciones para Claude en [`CLAUDE.md`](CLAUDE.md).
+> **Summary (English).** An automated checker that validates casino games on Betsson **the way a player does**.
+> The game is a third-party `<canvas>` with no usable DOM, so the checker *looks at the screen*: it finds amounts by
+> their visible labels (OCR with RapidOCR) and buttons by multi-scale template matching (OpenCV). The provider's
+> network traffic and the Betsson wallet are only used to **confirm** what is seen, never to replace it.
+> It uses Betsson test accounts (assisted login: a person signs in, by the mentor's decision), opens a
+> **Pragmatic Play** game in Real Play on **betsson.es (ES/EUR)** and validates two scenarios:
+> **S1, spin completed** (`balance after = before − bet + win`, both in the game and in Betsson) and
+> **S2, insufficient funds** (spin rejected, message in the market's language, balances unchanged).
+> Each scenario ends as **PASS**, **FAIL**, **INCONCLUSIVE** (never an optimistic pass) or **PROVIDER_UI_CHANGED**
+> (the provider changed its game UI: a warning, not an integration failure), with screenshots as evidence.
+> Extensible by design: a provider is a folder (`betsson/profiles/<provider>/`; Pragmatic Play and Play'n GO are
+> included, with `generic-vision` as fallback) and a market is a JSON file (`config/markets/`: Spain, Peru/PEN and
+> Malta/English). It runs in **GitHub Actions** on a self-hosted runner in Spain (Betsson geoblocks GitHub's US
+> runners) and publishes the HTML report as an artifact and on **GitHub Pages**: https://gitmobau.github.io/Malackaton/
 
-## Qué hay aquí
+Reto **Betsson "Intelligent Game Validation"** de la Malackathon 2026 (Málaga).
 
+## Qué hace
+
+Un comprobador que entra en Betsson **como un jugador**, abre un juego de tragaperras en **Real Play** y valida dos escenarios:
+
+| Escenario | Qué se comprueba |
+| --- | --- |
+| **S1, tirada completada** | La tirada empieza y termina. La apuesta y la moneda son las del mercado. Se cumple `saldo después = antes − apuesta + ganancia`, tanto en el juego como en el saldo de Betsson |
+| **S2, saldo insuficiente** | Con una cuenta sin saldo, la tirada se rechaza, el mensaje sale en el idioma del mercado y los saldos no cambian |
+
+Principios:
+- **Ve como un jugador.** El juego es un `<canvas>` de un tercero, sin DOM útil.
+  - Los importes se localizan por su **etiqueta visible**, con OCR (RapidOCR).
+  - Los botones se localizan por **plantilla multiescala**, con OpenCV.
+  - Un clic nunca es una prueba: la prueba es lo que cambia en pantalla.
+  - La red del proveedor y el monedero de Betsson solo **confirman** lo que se ve.
+- **Lo dudoso nunca es PASS.** Si no se puede verificar con seguridad, el resultado es INCONCLUSIVE o FAIL.
+- **Otros proveedores.** Escenarios, comprobaciones e informe no conocen ningún proveedor: solo usan la interfaz `ProviderProfile`.
+  - Añadir un proveedor es añadir una carpeta `betsson/profiles/<proveedor>/` y pasar el test de contrato.
+  - La carpeta contiene las pantallas de inicio, las etiquetas por idioma, las zonas en fracciones del canvas, las plantillas y los textos de saldo insuficiente.
+  - Incluidos: **Pragmatic Play** y **Play'n GO**, con `generic-vision` como respaldo.
+- **Cualquier mercado.** Un mercado es un archivo `config/markets/<mercado>.json` validado con pydantic, con moneda, formato numérico, idioma, textos esperados y apuesta mínima.
+  - Los importes se leen siempre con `parse_money(texto, mercado)`.
+  - Mercados incluidos: `es` (EUR, activo), `pe` (Perú, PEN) y `com` (Malta, EUR en inglés). Los dos últimos están configurados, pero sin cuenta de prueba.
+- **Resistencia a cambios del proveedor.**
+  - Las zonas fijas son solo una pista: el ancla es la etiqueta leída por OCR.
+  - Hay tests con capturas alteradas (escala, color y desplazamiento).
+  - Cada juego tiene una **huella** que se compara con la de la última ejecución buena.
+  - Si el perfil no reconoce el juego, el resultado es `PROVIDER_UI_CHANGED`, no un FAIL de integración.
+- **Ningún secreto en ningún sitio.**
+  - Las credenciales van en `.env` en local y en GitHub Secrets en la CI.
+  - Con la sesión iniciada no se graban trazas, HAR ni vídeo.
+  - Un escáner bloquea la publicación si aparece alguna credencial en las evidencias.
+
+## Arquitectura
+
+```
+config/markets/*.json ──► betsson/market (mercado, parse_money)
+                                 │
+betsson/site (A) ── web de Betsson: login asistido por CDP, saldo, abrir el juego ─────┐
+betsson/game, vision, profiles (B) ── ojos sobre el canvas: OCR, plantillas, perfiles ──┤
+                                                                                         ▼
+betsson/core (contratos) ◄── betsson/checks (C): escenarios S1 y S2 ──► betsson/report (C)
+                                                                        results.json + report.html
+.github/workflows (D) ── CI: tests sin red en GitHub; ejecución real en el runner propio; artifact y Pages
+```
+
+| Área | Carpetas | Responsabilidad |
+| --- | --- | --- |
+| **A**, web de Betsson y mercados | `betsson/site/`, `betsson/market/`, `config/markets/` | Login asistido, saldo de Betsson, búsqueda y apertura del juego, avisos del regulador; esquema de mercado y `parse_money` |
+| **B**, ojos y proveedores | `betsson/game/`, `betsson/vision/`, `betsson/profiles/`, `fixtures/` | `GameEyes` (leer saldo, apuesta y ganancia, girar, esperar el fin de la tirada, leer mensajes) y perfiles de proveedor |
+| **C**, escenarios e informe | `betsson/core/`, `betsson/checks/`, `betsson/report/`, `tests/` | Contratos (`ProviderProfile`, `GameEyes`, `BetssonSite`, `CheckResult`, `RunResult`), comprobaciones de S1 y S2, informe |
+| **D**, CI e infraestructura | raíz, `.github/` | Workflow, runner propio, escáner de secretos, informe web y Pages |
+
+Los contratos de `betsson/core/` (modelos pydantic y `Protocol`) son el único punto de unión entre áreas. Cada área se probó contra simulaciones (`tests/fakes.py`) antes de integrarse.
+
+## Instalación
+
+```powershell
+git clone https://github.com/gitmobau/Malackaton.git D:\Malackaton
+cd D:\Malackaton
+py -3 -m venv .venv; .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python -m playwright install chromium
+pytest -m unit   # tests sin red: OCR sobre capturas, parse_money, contratos y perfiles
+```
+
+Más detalles para dejar el portátil listo en [Preparar el portátil](#preparar-el-portátil-todo-en-d).
+
+## Cómo ejecutar
+
+### Requisitos
+- Windows con **Chrome del sistema** (o `CHROME_PATH` apuntando a `chrome.exe`) y el `.venv` preparado con `setup-portatil.ps1`.
+- Conexión desde **España, sin VPN**: Betsson geobloquea otras IP (por eso la CI real va en el runner propio).
+- Dos cuentas de prueba de betsson.es: **con saldo** (S1, tirada completa) y **sin saldo** (S2, saldo insuficiente). Las credenciales las escribe una persona en el login asistido; el comprobador nunca las teclea. Si se guardan, solo en `.env` (ver `.env.example`).
+
+### Login asistido (antes de cada ejecución real)
+Betsson rechaza el login automatizado aunque vaya a ritmo humano. Por eso, **con autorización de los mentores**, una persona inicia sesión a mano en un Chrome normal y el comprobador lo reutiliza por CDP. Sin stealth, sin huella falsa y sin resolver captchas.
+
+| Cuenta | Escenario | Perfil de Chrome (fuera del repo) | Puerto CDP |
+|---|---|---|---|
+| `funded` (con saldo) | S1 | `D:\MAIKI\Malackathon\.chrome-profiles\es-funded` | 9222 |
+| `empty` (sin saldo) | S2 | `D:\MAIKI\Malackathon\.chrome-profiles\es-empty` | 9223 |
+
+Los puertos salen de `config/markets/es.json` (`site.browser_session.cdp_ports`) y la carpeta de perfiles se cambia con `CHROME_PROFILES_ROOT`. **Un perfil con sesión equivale a una credencial**: no se copia ni se sube.
+
+1. **Abrir los dos Chrome.** Se lanzan como proceso normal de Chrome, no con Playwright, y siguen abiertos al terminar el script. Si ya hay uno en el puerto, se reutiliza.
+   ```powershell
+   python -m betsson.site.login_asistido --market es --account funded
+   python -m betsson.site.login_asistido --market es --account empty
+   ```
+2. **Lo que hace la persona** en cada ventana: pulsa *Iniciar sesión*, escribe el usuario y la contraseña de esa cuenta y entra. **Nada más**: no toca el diálogo de límites de la DGOJ ni cierra la ventana.
+   - Mientras escribe, el script no está conectado a Chrome, para no interferir con el antibot.
+   - Con `--wait`, el script vigila cada 15 s y termina solo cuando detecta la sesión (tope de 10 min).
+3. **Comprobar que la sesión está viva.** Abre y cierra una pestaña propia, con un tope de 20 s, y anota la hora:
+   ```powershell
+   python -m betsson.site.login_asistido --market es --account funded --check
+   python -m betsson.site.login_asistido --market es --account empty --check
+   ```
+   - Salida `0` ("sesión VÁLIDA"): se puede lanzar.
+   - Salida `1` ("AUSENTE O CADUCADA"): repetir el paso 2 en esa ventana.
+   - Salida `2` (no hay Chrome en ese puerto): repetir el paso 1.
+4. **Al final del día**, cerrar las dos sesiones:
+   ```powershell
+   python -m betsson.site.login_asistido --market es --account funded --logout
+   python -m betsson.site.login_asistido --market es --account empty --logout
+   ```
+
+**Lo que hace el comprobador** (`BetssonSite.attach_cdp`):
+- Se conecta al Chrome del puerto de la cuenta, abre **su propia pestaña** y la trae al frente.
+- Comprueba la sesión **sin escribir nunca credenciales**. Si no hay sesión, el resultado es no concluyente; nunca intenta un login automatizado de reserva.
+- Lee el saldo de la cabecera de Betsson, abre el juego y acepta el aviso previo y el diálogo de la DGOJ (5 h / 25 %).
+- Al terminar cierra solo su pestaña: ni cierra Chrome ni hace logout.
+- **No graba traza, HAR ni vídeo**, porque con la sesión iniciada la web descarga el perfil del cliente. Las evidencias son capturas de pantalla.
+
+**Caducidad: la sesión de Betsson se cierra por inactividad tras unos 25-30 min** (observado hoy, no medido con exactitud).
+- Hay que hacer el login asistido, o al menos el `--check`, **justo antes** de lanzar. Que el puerto CDP responda no garantiza que la sesión siga viva.
+- Si caduca, el escenario sale **no concluyente** ("repetir el login asistido"), no como FAIL de integración.
+- El límite de 5 h de la DGOJ es otra cosa: es la sesión de juego y lo gestiona el comprobador.
+
+### Lanzar S1 y S2 en local
+Con las dos sesiones vivas y el `.venv` activado:
+```powershell
+$env:GAME_SLUG = "big-bass-splash"
+python -m pytest tests/test_real.py -m real --market es --headed --browser-channel chrome --tracing off --video off --screenshot off            # S1 y S2
+python -m pytest tests/test_real.py -m real --market es --headed --browser-channel chrome --tracing off --video off --screenshot off -k real_s1  # solo S1 (9222)
+python -m pytest tests/test_real.py -m real --market es --headed --browser-channel chrome --tracing off --video off --screenshot off -k real_s2  # solo S2 (9223)
+```
+- Resultados en `outputs/runs/<runId>/es/S1|S2/` (`results.json` y `report.html`), con el índice en `outputs/runs/<runId>/report.html`.
+- Plan B si no hay cuenta vacía: `$env:S2_ACCOUNT="funded"; $env:S2_BET_TARGET="above_balance"`.
+
+### Lanzar por la CI
+Primero el login asistido; después:
+```bash
+gh workflow run "Validación de juegos" -R gitmobau/Malackaton --ref main -f markets=es -f scenarios=s1,s2 -f game_slug=big-bass-splash
+```
+- `scenarios` admite `s1`, `s2` o `s1,s2`. Solo se exige el Chrome del escenario pedido.
+- El detalle está en [CI (GitHub Actions)](#ci-github-actions).
+
+### Cambiar de juego
+El juego se elige con **`GAME_SLUG`**, el slug de la URL de Betsson (`https://www.betsson.es/casino/<categoría>/<slug>`). Puede venir de tres sitios:
+- la variable de entorno, en local;
+- el input `game_slug` del workflow;
+- la variable del repo `GAME_SLUG` (ahora `big-bass-splash`).
+
+Ningún juego ni proveedor está fijo en el código:
+- El comprobador busca el juego con el buscador del casino, lo abre en Real Play y el registro de perfiles detecta el proveedor por lo que se ve.
+- Si no reconoce el proveedor, usa `generic-vision`.
+- Si no consigue leer el juego, el resultado es `PROVIDER_UI_CHANGED` (no concluyente).
+
+### Añadir un mercado
+Un mercado nuevo es **un archivo** `config/markets/<id>.json`, validado con pydantic (`betsson/market/schema.py`), sin tocar código. Se parte de `es.json` (verificado en real) y se ajustan estos campos:
+- `base_url`, `locale`, `language` y `timezone`.
+- `currency`: `code` ISO, `symbols` (alias visibles como `€`, `S/` o `PEN`) y `symbol_position`.
+- `number_format`: separador de miles, separador decimal y número de decimales. Todos los importes se leen con `parse_money(texto, mercado)`.
+- `min_bet`: la apuesta mínima.
+- `expected_texts` en el idioma del mercado: `insufficient_funds`, `balance_labels`, `bet_labels` y `win_labels`.
+- `credentials_env`: solo los **nombres** de las variables de entorno, nunca los valores.
+- `site`: `casino_path`; `browser_session.cdp_ports` (un puerto por cuenta, si hay login asistido); `session_limits` (patrones del diálogo del regulador, si existe).
+- `real_execution_enabled`: `false` mientras no haya cuenta (el test real se salta con motivo).
+- `verified`: `true` solo después de probarlo en real.
+
+`com.json` (Malta, EUR, inglés) y `pe.json` (Perú, PEN) ya están configurados y desactivados por falta de cuenta. Cuando haya cuenta: `real_execution_enabled: true` y `-f markets=es,pe`.
+
+## Cómo se informa
+<!-- SECCION-C: pendiente del texto del área C -->
+Cada escenario deja en `outputs/runs/<runId>/<mercado>/<escenario>/`:
+- **`results.json`**: el resultado completo, con una entrada por comprobación (identificador, estado, tipo de fallo, motivo, valores leídos y rutas de las evidencias).
+- **`report.html`**: el informe legible, con el resultado de cada comprobación, las capturas y una **galería de lecturas** (qué zona del canvas se leyó y qué texto devolvió el OCR).
+- Un índice de la ejecución en `outputs/runs/<runId>/report.html`.
+
+| Resultado | Significa |
+| --- | --- |
+| **PASS** | Todas las comprobaciones pasan, con evidencia visible |
+| **FAIL** | Fallo de integración (un saldo que no cuadra, una tirada que no se rechaza…) o error de ejecución |
+| **INCONCLUSIVE** | No se pudo leer o verificar con seguridad (`reason: "inconclusive: …"`). Nunca se convierte en PASS |
+| **PROVIDER_UI_CHANGED** | El perfil no reconoce el juego: aviso de que el proveedor cambió su interfaz, no un fallo de Betsson |
+<!-- /SECCION-C -->
+
+En la CI:
+- las evidencias se publican como artifact `evidencias-<mercado>-<run>`, solo si el escáner de secretos sale en verde;
+- el job `pages` publica el informe web en **https://gitmobau.github.io/Malackaton/** y como artifact `informe-web-<run>`.
+
+Informes guardados de ejemplo, en [`docs/informes/`](docs/informes/):
+- ejecución en **PASS**: _(pendiente)_;
+- ejecución con un **fallo provocado**: _(pendiente)_.
+
+## Limitaciones conocidas
+- **Login asistido.** Por decisión del mentor, una persona inicia sesión, porque el antibot de Betsson rechaza el login automatizado. El valor del comprobador está en el análisis del canvas, no en el formulario de login.
+- **Las sesiones de Betsson caducan por inactividad** (unos 25-30 min). El login asistido se repite, o al menos se comprueba, justo antes de cada ejecución.
+- **Runner propio.** La ejecución real necesita un equipo en España con escritorio, porque el navegador es visible. Los runners de GitHub tienen IP de EE. UU. y Betsson los geobloquea.
+- **Un solo mercado real.** `pe` y `com` están configurados, pero sin cuenta de prueba no se ejecutan en real.
+- **Sin vídeo ni traza en la CI.** Con la sesión iniciada guardarían datos personales del cliente. Las evidencias son capturas.
+
+## Documentación del equipo
 | Ruta | Qué es |
 | --- | --- |
-| `CLAUDE.md` | Contexto del hackathon y reglas de trabajo para Claude Code |
-| `docs/PREPARACION.md` | **Reto Betsson**: requisitos, arquitectura, incógnitas, decisiones y riesgos (documento vivo) |
-| `docs/PLAN_24H.md` | Áreas del equipo, arranque en paralelo, bloques horarios e hitos |
-| `docs/PREGUNTAS.md` | Preguntas abiertas a mentores, organización y equipo |
-| `docs/recon/` | Capturas de la exploración de la web pública de Betsson |
-| `docs/retos.md` | Texto oficial de los 6 retos y nuestro orden |
-| `.claude/` | [ECC](https://github.com/affaan-m/ECC) copiado dentro del proyecto: agentes, skills, comandos y reglas. Funciona igual en local y en sesiones en la nube |
-| `setup-portatil.ps1` | Deja el portátil listo con todo en el disco D: |
-| `requirements.txt` | Dependencias de Python comunes a los retos |
+| `docs/PREPARACION.md` | Requisitos, arquitectura, comprobaciones, decisiones y riesgos |
+| `docs/PLAN_24H.md` | Áreas, hitos y plan de recortes |
+| `docs/PREGUNTAS.md` | Preguntas a mentores y organización |
+| `docs/demo/GUION.md` | Guion de la demo de 7 minutos |
+| `CLAUDE.md`, `.claude/` | Instrucciones y agentes de Claude Code ([ECC](https://github.com/affaan-m/ECC)) que usó el equipo |
+
+# Anexos
 
 ## Preparar el portátil (todo en D:)
 
