@@ -120,11 +120,13 @@ def _fingerprint_frame(obs: dict[str, Any], extra: dict[str, Any]) -> None:
 
 def _choose_bet_s1(eyes: GameEyes, obs: dict[str, Any], strategy: BetStrategy) -> None:
     """Apuesta de S1 y saldo antes. En "current" solo se baja a la mínima si la visible no cabe."""
+    obs["bet_strategy"] = strategy
     if strategy == "min":
+        obs["bet_initial"] = eyes.read_bet()
         obs["bet"] = eyes.set_bet("min")
         obs["game_before"] = eyes.read_balance()
         return
-    obs["bet"] = eyes.read_bet()
+    obs["bet"] = obs["bet_initial"] = eyes.read_bet()
     if strategy == "step":
         initial = obs["bet"]
         # Solo si los ojos lo declaran: unos ojos sin "one_step" podrían tratarlo como otra cosa
@@ -134,6 +136,7 @@ def _choose_bet_s1(eyes: GameEyes, obs: dict[str, Any], strategy: BetStrategy) -
             if not supported:
                 raise NotImplementedError("los ojos no declaran 'one_step' en bet_targets")
             obs["bet"] = eyes.set_bet("one_step")
+            obs["bet_step_requested"] = True
         except (ValueError, NotImplementedError) as exc:
             obs.setdefault("_notes", []).append(f"no se pudo cambiar la apuesta un paso ({safe_error(exc)})")
         else:
@@ -143,6 +146,7 @@ def _choose_bet_s1(eyes: GameEyes, obs: dict[str, Any], strategy: BetStrategy) -
     bet, balance = obs["bet"], obs["game_before"]
     if bet.ok and balance.ok and bet.money.amount > balance.money.amount:
         obs["bet"] = eyes.set_bet("min")  # sin saldo para la visible no habría tirada pagada
+        obs["bet_fallback_min"] = True
 
 
 def _play_s1(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target: BetTarget,

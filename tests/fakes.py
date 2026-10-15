@@ -143,7 +143,8 @@ class FakeGameEyes:
     fail_on_spin: Exception | None = None
     bets_set: list[BetTarget] = field(default_factory=list)
     step_bet: Reading | None = None  # apuesta visible tras set_bet("one_step")
-    bet_targets: tuple[str, ...] = ("min", "above_balance", "one_step")
+    # Por defecto sin "one_step" (como unos ojos que no lo soportan); los tests de step lo activan.
+    bet_targets: tuple[str, ...] = ("min", "above_balance")
 
     def _shot(self, r: Reading, name: str) -> Reading:
         return r.model_copy(update={"evidence_path": self.screenshot(name)})
