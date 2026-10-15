@@ -22,6 +22,7 @@ _MAX_LETTERS_IN_VALUE = 3
 # Máxima distancia, en alturas de la etiqueta, para aceptar un valor como "suyo".
 _MAX_RIGHT_GAP = 6.0
 _MAX_BELOW_GAP = 2.0
+_ADJACENT_GAP = 1.0  # un importe a menos de una altura de la caja de la etiqueta va "pegado" a ella
 
 
 @dataclass(frozen=True)
@@ -103,10 +104,16 @@ def _owned_by_other_label(
 
 def _value_for(label: TextBox, alias_norm: str, boxes: list[TextBox]) -> AnchoredValue | None:
     inline = _strip_label(label.text, alias_norm)
+    values = [b for b in boxes if b is not label and is_bare_value(b.text)]
     if inline:
         # Algo detrás de la etiqueta en la misma caja: solo vale si es un importe ('WIN UP TO 5.000 €' no).
-        return AnchoredValue(label, inline, label.score, "inline", label) if is_bare_value(inline) else None
-    values = [b for b in boxes if b is not label and is_bare_value(b.text)]
+        if not is_bare_value(inline):
+            return None
+        # Si además hay un importe pegado a la derecha ('CRÉDITO 1' + '100,00 €', caso real), el OCR
+        # ha partido o duplicado cifras: es ambiguo y se deja que GameEyes relea ampliando.
+        if any((d := _distance_right(label, b)) is not None and d <= _ADJACENT_GAP for b in values):
+            return None
+        return AnchoredValue(label, inline, label.score, "inline", label)
     # La misma fila manda: "debajo" solo cuenta si no hay nada a la derecha (las líneas apiladas
     # como CRÉDITO/APUESTA tienen el valor de la siguiente justo debajo de la etiqueta).
     for rank, (strategy, distance) in enumerate(_STRATEGIES):

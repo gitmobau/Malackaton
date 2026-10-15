@@ -11,6 +11,8 @@ ASSETS = Path(__file__).parent / "assets"
 PROFILE = ProfileSpec(
     name="pragmatic",
     url_patterns=[r"pragmaticplay\.net", r"/gs2c/", r"ppgames\.net"],
+    # El botón redondo del gorila (girar en juego y continuar en la presentación) es de este estudio.
+    detect_templates=[ASSETS / "spin.png", ASSETS / "intro_continue.png"],
     intro_screens=[
         # Logo del estudio mientras carga: no se pulsa nada, se espera.
         IntroStep(
