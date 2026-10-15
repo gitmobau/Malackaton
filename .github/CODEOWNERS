@@ -1,5 +1,8 @@
-# Dueños por área (docs/PLAN_24H.md). Sustituir cada @TODO por el usuario de GitHub.
-# Mientras siga @TODO, la línea no asigna revisor.
+# El equipo trabaja con una única cuenta de GitHub compartida (gitmobau), así que es dueña de todo.
+# El reparto por áreas (docs/PLAN_24H.md) queda documentado abajo. Si cada miembro llega a tener
+# su propia cuenta con acceso al repo, se sustituye cada @TODO-<nombre> y se descomenta la línea.
+* @gitmobau
+
 # A, Maiki: web de Betsson, mercados y docs
 # /betsson/site/       @TODO-maiki
 # /betsson/market/     @TODO-maiki
