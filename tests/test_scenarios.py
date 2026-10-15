@@ -503,3 +503,50 @@ def test_eye_notes_reach_the_report(tmp_path: Path) -> None:
     run = run_scenario(market=FakeMarket(), scenario=Scenario.S1, site=site, registry=registry,
                        eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="r")
     assert any("presentación no se cerró" in w for w in run.warnings)
+
+
+# --- Estrategia de apuesta -------------------------------------------------------
+
+
+def _run_strategy(tmp_path: Path, strategy: str, bet: str, game=("100.00", "98.00"), betsson=("100.00", "98.00")):
+    registry = FakeRegistry()
+    eyes = FakeGameEyes(registry.profile, tmp_path, [reading(game[0]), reading(game[1])], reading(bet))
+    site = FakeBetssonSite([reading(betsson[0]), reading(betsson[1])], tmp_path)
+    run = run_scenario(market=FakeMarket(), scenario=Scenario.S1, site=site, registry=registry,
+                       eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="r",
+                       bet_strategy=strategy)
+    return run, eyes
+
+
+def test_current_strategy_plays_visible_bet_without_set_bet(tmp_path: Path) -> None:
+    run, eyes = _run_strategy(tmp_path, "current", "2.00")
+    assert eyes.bets_set == []
+    assert run.outcome == "PASS", [r.reason for r in run.results if r.status == "FAIL"]
+
+
+def test_current_strategy_falls_back_to_min_if_bet_exceeds_balance(tmp_path: Path) -> None:
+    _, eyes = _run_strategy(tmp_path, "current", "2.00", game=("1.00", "-1.00"), betsson=("1.00", "-1.00"))
+    assert eyes.bets_set == ["min"]
+
+
+def test_min_strategy_still_refuses_above_min(tmp_path: Path) -> None:
+    run, eyes = _run_strategy(tmp_path, "min", "2.00")
+    assert eyes.bets_set == ["min"]
+    assert by_id(run)[CheckId.WAGER_READ].failure_kind is FailureKind.INCONCLUSIVE
+
+
+def test_current_strategy_s2_does_not_touch_bet(tmp_path: Path) -> None:
+    registry = FakeRegistry()
+    msg = Message(text="Fondos insuficientes", lang_detected="es", matches_insufficient=True)
+    eyes = FakeGameEyes(registry.profile, tmp_path, [reading("0.00"), reading("0.00")], reading("2.00"), message=msg,
+                        spin_starts=False)
+    site = FakeBetssonSite([reading("0.00"), reading("0.00")], tmp_path)
+    run = run_scenario(market=FakeMarket(), scenario=Scenario.S2, site=site, registry=registry,
+                       eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="r",
+                       bet_strategy="current")
+    assert eyes.bets_set == [] and run.outcome == "PASS"
+
+
+def test_unknown_bet_strategy_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        _run_strategy(tmp_path, "max", "0.10")
