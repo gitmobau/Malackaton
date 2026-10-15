@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import sys
 import zipfile
 from collections.abc import Iterator
@@ -17,8 +18,14 @@ from pathlib import Path
 from urllib.parse import quote, quote_plus
 
 SECRET_PREFIXES = ("BETSSON_", "ANTHROPIC_API_KEY")
-REQUIRED = ("BETSSON_USERNAME", "BETSSON_PASSWORD")
+# Credenciales obligatorias: genéricas (CI) o por mercado (.env local), p. ej. BETSSON_ES_USERNAME.
+REQUIRED = re.compile(r"^BETSSON_(?:[A-Z]+_)?(USERNAME|PASSWORD)$")
 MIN_LEN = 4  # evitar falsos positivos con valores triviales
+
+
+def missing_credentials() -> list[str]:
+    present = {m.group(1) for k, v in os.environ.items() if v and (m := REQUIRED.match(k))}
+    return [f"BETSSON_[<MERCADO>_]{kind}" for kind in ("USERNAME", "PASSWORD") if kind not in present]
 
 
 def variants(value: str) -> set[bytes]:
@@ -56,7 +63,7 @@ def scan(root: Path, needles: set[bytes]) -> list[str]:
 
 
 def main(root: str) -> int:
-    missing = [k for k in REQUIRED if not os.getenv(k)]
+    missing = missing_credentials()
     if missing:
         print(f"Faltan credenciales en el entorno ({', '.join(missing)}): no se puede escanear.")
         return 2
