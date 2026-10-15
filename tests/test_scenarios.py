@@ -429,3 +429,58 @@ def test_plain_text_notices_are_accepted(tmp_path: Path) -> None:
     run = run_s1(tmp_path, site_kw={"handle": handle})
     notice = next(r for r in run.readings if r.name == "Aviso de Betsson")
     assert notice.raw_text.startswith("No dispones de saldo") and notice.evidence is None
+
+
+class _IntroRegistry(FakeRegistry):
+    """Con la intro en pantalla solo reconoce el respaldo; con el juego listo, el perfil bueno."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        from tests.fakes import FakeProfile
+
+        self.fallback = FakeProfile(name="generic-vision")
+        self.intro_closed = False
+        self.checked: list[str] = []
+
+    def resolve(self, iframe_url, frame):  # type: ignore[override]
+        return self.profile if self.intro_closed else self.fallback
+
+    def ensure_recognized(self, profile, frame) -> None:  # type: ignore[override]
+        self.checked.append(profile.name)
+
+
+def test_profile_is_resolved_again_after_the_intro(tmp_path: Path) -> None:
+    registry = _IntroRegistry()
+    made: list[str] = []
+    eyes = FakeGameEyes(registry.profile, tmp_path, [reading("100.00"), reading("99.90")], reading("0.10"))
+
+    def make(handle, profile, market):
+        made.append(profile.name)
+        registry.intro_closed = True  # los ojos de B cierran la intro al construirse
+        return eyes
+
+    site = FakeBetssonSite([reading("100.00"), reading("99.90")], tmp_path)
+    run = run_scenario(market=FakeMarket(), scenario=Scenario.S1, site=site, registry=registry,
+                       eyes_factory=make, slug="fake-slot", out_dir=tmp_path, run_id="r")
+    assert made == ["generic-vision", "fake-provider"]
+    assert registry.checked == ["fake-provider"]  # ensure_recognized solo con el juego listo
+    assert run.provider == "fake-provider" and run.outcome == "PASS"
+
+
+def test_notice_is_not_shown_as_doubtful(tmp_path: Path) -> None:
+    from betsson.core import Notice
+
+    handle = FakeGameHandle(notices=(Notice(text="Hace menos de 60 mins. que finalizaste tu sesión de juego"),))
+    run = run_s1(tmp_path, site_kw={"handle": handle})
+    notice = next(r for r in run.readings if r.name == "Aviso de Betsson")
+    assert notice.value == "aviso visible"
+
+
+def test_eye_notes_reach_the_report(tmp_path: Path) -> None:
+    registry = FakeRegistry()
+    eyes = FakeGameEyes(registry.profile, tmp_path, [reading("100.00"), reading("99.90")], reading("0.10"))
+    eyes.notes = ["inconclusive: la presentación no se cerró en 60 s"]  # type: ignore[attr-defined]
+    site = FakeBetssonSite([reading("100.00"), reading("99.90")], tmp_path)
+    run = run_scenario(market=FakeMarket(), scenario=Scenario.S1, site=site, registry=registry,
+                       eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="r")
+    assert any("presentación no se cerró" in w for w in run.warnings)
