@@ -36,6 +36,7 @@ log = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT_MS = 30_000
 GAME_LAUNCH_TIMEOUT_MS = 60_000
+SCREENSHOT_TIMEOUT_MS = 15_000
 _POLL_MS = 1_000  # tope de cada espera a un evento o elemento, no una pausa fija
 BALANCE_STABLE_WINDOW_MS = 3_000  # el saldo es estable si su texto no cambia en esta ventana
 BALANCE_SETTLE_TIMEOUT_MS = 30_000  # si sigue cambiando pasado esto: "saldo no estable" (no concluyente)
@@ -104,10 +105,12 @@ class GameHandle:
     play_mode: PlayMode
     play_mode_reason: str = ""
     evidence: tuple[Path, ...] = field(default_factory=tuple)
+    notices: tuple[str, ...] = ()  # avisos visibles de Betsson al lanzar (p. ej. "No dispones de saldo…")
 
     def capture(self) -> np.ndarray:
         """Captura actual del canvas del juego, en RGB."""
-        png = self.canvas.screenshot()
+        self.canvas.page.bring_to_front()
+        png = self.canvas.screenshot(timeout=SCREENSHOT_TIMEOUT_MS)
         return np.asarray(Image.open(io.BytesIO(png)).convert("RGB"))
 
 
@@ -137,9 +140,11 @@ class BetssonSite:
         self.login_note: str | None = None  # motivo legible de login_ok para el informe
         self.evidence_dir = evidence_dir or Path("outputs") / "site" / market.id
         self.last_login_error: str | None = None
+        self.launch_notices: list[str] = []  # avisos visibles de Betsson al lanzar el juego (evidencia para S2)
         self._trace = trace or NoTrace()
         self._pacer = pacer or Pacer()
         self._games: dict[str, GameInfo] = {}
+        self._game_paths: dict[str, str] = {}  # slug -> /casino/<categoría>/<slug> (del buscador)
         self._api_headers: dict[str, str] = {}
         self.cookies_rejected = False
         page.set_default_timeout(timeout_ms)
@@ -174,8 +179,11 @@ class BetssonSite:
         """Captura de la página con los campos del login tapados."""
         self.evidence_dir.mkdir(parents=True, exist_ok=True)
         path = self.evidence_dir / f"{name}.png"
+        self.page.bring_to_front()  # una pestaña en segundo plano no se pinta y la captura se cuelga
         self.page.screenshot(
-            path=path, mask=[self.page.locator(sel.LOGIN_USERNAME), self.page.locator(sel.LOGIN_PASSWORD)]
+            path=path,
+            mask=[self.page.locator(sel.LOGIN_USERNAME), self.page.locator(sel.LOGIN_PASSWORD)],
+            timeout=SCREENSHOT_TIMEOUT_MS,
         )
         return path
 
@@ -188,8 +196,11 @@ class BetssonSite:
 
     def goto_lobby(self) -> None:
         self._goto(self.market.site.casino_path)
-        self.page.locator(sel.GAME_THUMBNAIL).first.wait_for(state="visible", timeout=GAME_LAUNCH_TIMEOUT_MS)
-        self._wait_site_settled()
+        # Con sesión, /casino puede no mostrar miniaturas: basta con que esté el buscador.
+        ready = self.page.locator(sel.GAME_THUMBNAIL).or_(self.page.locator(sel.SEARCH_OPEN_TRIGGER))
+        ready.first.wait_for(state="visible", timeout=GAME_LAUNCH_TIMEOUT_MS)
+        if self.login_mode != "session":  # con sesión ya iniciada el desafío del WAF está resuelto
+            self._wait_site_settled()
 
     def _wait_site_settled(self, timeout_ms: int = 30_000) -> None:
         """Espera a que el desafío del WAF termine SOLO (aparece su cookie) y a que la red se calme.
@@ -229,7 +240,9 @@ class BetssonSite:
     def is_logged_in(self) -> bool:
         """Hay sesión si ya no se ofrece "Iniciar sesión" en la cabecera y se ve el acceso al saldo."""
         login_offered = self.page.get_by_text(sel.LOGIN_OPEN).filter(visible=True).count() > 0
-        return not login_offered and (self._balance_toggle() is not None or self._find_balance_locator() is not None)
+        account = self.page.locator(sel.BALANCE_BUTTON).or_(self.page.locator(sel.IN_GAME_BALANCE_BUTTON))
+        has_balance_button = account.filter(visible=True).count() == 1
+        return not login_offered and has_balance_button
 
     def login(self, credentials: Credentials | None = None) -> bool:
         """Inicia sesión con la cuenta del mercado (traza pausada, campos tapados). False si Betsson la rechaza.
@@ -285,7 +298,8 @@ class BetssonSite:
         deadline = time.monotonic() + SESSION_CHECK_TIMEOUT_MS / 1000
         while time.monotonic() < deadline:
             try:
-                if self._balance_toggle() is not None or self._find_balance_locator() is not None:
+                account = self.page.locator(sel.BALANCE_BUTTON).or_(self.page.locator(sel.IN_GAME_BALANCE_BUTTON))
+                if account.filter(visible=True).count() == 1:
                     break
                 if self.page.get_by_text(sel.LOGIN_OPEN).filter(visible=True).count():
                     deadline = 0  # se ofrece "Iniciar sesión": no hay sesión
@@ -322,11 +336,12 @@ class BetssonSite:
     def logout(self) -> bool:
         """Cierra la sesión (y con ella la sesión de juego del regulador). True si ya no hay sesión."""
         logout = self.page.get_by_text(sel.LOGOUT).filter(visible=True)
-        openers = [self._balance_toggle(), self.page.locator(sel.USER_MENU).filter(visible=True).first]
+        openers = [self.page.locator(sel.BALANCE_BUTTON).filter(visible=True).first,
+                   self.page.locator(sel.USER_MENU).filter(visible=True).first]
         for opener in openers:
             if logout.count():
                 break
-            if opener is None or not opener.count():
+            if not opener.count():
                 continue
             self._human_click(opener)
             try:
@@ -370,59 +385,59 @@ class BetssonSite:
 
     # ------------------------------------------------------------------ saldo
 
-    def _balance_label_regex(self) -> re.Pattern[str]:
-        labels = "|".join(re.escape(label) for label in self.market.expected_texts.balance_labels)
-        return re.compile(rf"^\s*({labels})\s*$", re.IGNORECASE)
-
-    def _balance_toggle(self) -> Locator | None:
-        """Botón de la cabecera que muestra el saldo ("Saldo ▾" en es): su texto es una etiqueta de saldo."""
-        toggle = self.page.get_by_role("button", name=self._balance_label_regex()).filter(visible=True)
-        return toggle.first if toggle.count() else None
-
-    def _money_text_regex(self) -> re.Pattern[str]:
-        symbols = "|".join(re.escape(s) for s in self.market.currency.symbols)
-        number = r"-?\d[\d.,   ]*"
-        return re.compile(rf"({symbols})\s*{number}|{number}\s*({symbols})", re.IGNORECASE)
+    def _unique_money(self, css: str) -> Locator | None:
+        """El elemento `css` solo si es ÚNICO, visible y muestra un importe con la moneda del mercado."""
+        element = self.page.locator(css).filter(visible=True)
+        if element.count() != 1:
+            return None
+        try:
+            text = element.inner_text().strip()
+        except PlaywrightError:
+            return None
+        if detect_currency(text, self.market) != self.market.currency_code:
+            return None  # p. ej. saldo oculto ("Saldo ▾") o aún cargando
+        try:
+            parse_money(text, self.market, require_currency=True)
+        except MoneyParseError:
+            return None
+        return element
 
     def _find_balance_locator(self) -> Locator | None:
-        """Elemento visible con un importe legible y la moneda del mercado a la vista."""
-        candidates = [self.page.locator(css) for css in sel.BALANCE_CANDIDATES]
-        candidates.append(self.page.get_by_text(self._money_text_regex()))  # p. ej. dentro del desplegable de "Saldo"
-        for loc in candidates:
-            loc = loc.filter(visible=True)
-            for i in range(min(loc.count(), 20)):
-                try:
-                    text = loc.nth(i).inner_text().strip()
-                except PlaywrightError:
-                    continue
-                if not text or len(text) > 80 or detect_currency(text, self.market) != self.market.currency_code:
-                    continue
-                try:
-                    parse_money(text, self.market, require_currency=True)
-                except MoneyParseError:
-                    continue
-                return loc.nth(i)
-        return None
+        """Saldo de la cuenta en la cabecera: botón de saldo (lobby) o total del resumen (página del juego).
+
+        Nunca se busca "cualquier texto con €": un banner promocional se leería como saldo.
+        """
+        return self._unique_money(sel.BALANCE_BUTTON) or self._unique_money(sel.SUMMARY_BALANCE)
 
     def read_balance(self, timeout_ms: int = DEFAULT_TIMEOUT_MS) -> Reading:
         """Saldo de Betsson leído del DOM, con captura. Nunca lanza: si no se puede leer, Reading no concluyente."""
         deadline = time.monotonic() + timeout_ms / 1000
-        toggled = False
-        while time.monotonic() < deadline:
-            try:
-                loc = self._find_balance_locator()
-                if loc is not None:
-                    return self._balance_reading(loc)
-                toggle = self._balance_toggle()
-                if toggle is not None and not toggled:
-                    toggle.click()
-                    toggled = True
+        opened: Locator | None = None  # desplegable "Saldo ▾" abierto por nosotros: se cierra al terminar
+        try:
+            while time.monotonic() < deadline:
+                try:
+                    loc = self._find_balance_locator()
+                    if loc is not None:
+                        return self._balance_reading(loc)
+                    toggle = self.page.locator(sel.IN_GAME_BALANCE_BUTTON).filter(visible=True)
+                    if opened is None and toggle.count() == 1:
+                        toggle.click()
+                        opened = toggle
+                        continue
+                    self.page.locator(sel.BALANCE_BUTTON).or_(self.page.locator(sel.SUMMARY_BALANCE)).first.wait_for(
+                        state="visible", timeout=_POLL_MS
+                    )
+                except PlaywrightError:  # navegación o re-render en curso: se vuelve a mirar hasta el tope
                     continue
-                self.page.get_by_text(self._money_text_regex()).first.wait_for(state="visible", timeout=_POLL_MS)
-            except PlaywrightError:  # navegación o re-render en curso: se vuelve a mirar hasta el tope
-                continue
+        finally:
+            if opened is not None:
+                try:
+                    opened.click()  # cerrar el resumen para no tapar el juego
+                except PlaywrightError:
+                    log.warning("no se pudo cerrar el desplegable de saldo")
         return Reading(
-            reason=f"saldo de Betsson no visible en {self.market.id}", evidence_path=self._safe_screenshot("betsson_balance")
+            reason=f"saldo de Betsson no visible o no unívoco en la cabecera ({self.market.id})",
+            evidence_path=self._safe_screenshot("betsson_balance"),
         )
 
     def _safe_screenshot(self, name: str) -> Path | None:
@@ -534,9 +549,13 @@ class BetssonSite:
 
     def open_game(self, slug: str, query: str | None = None) -> GameHandle:
         """Abre el juego en Real Play y devuelve su iframe y su canvas. Lanza GameOpenError si no se puede."""
-        link = self.find_game(slug, query)
-        self._pacer.wait_turn()
-        link.click()
+        path = self._game_paths.get(slug)
+        if path is None:
+            href = self.find_game(slug, query).get_attribute("href") or ""
+            path = urlparse(href).path or href
+            self._game_paths[slug] = path  # /casino/<categoría>/<slug>: la categoría va localizada por mercado
+        # Lanzar directamente, como el botón "Jugar" de la web: ?gameAction=play (visto con login manual el 15-oct).
+        self._goto(f"{path}?{sel.GAME_PLAY_QUERY}")
         self.page.wait_for_url(f"**/{slug}**")
         info = self.game_info_by_slug(slug)
         if info is None:
@@ -557,6 +576,7 @@ class BetssonSite:
             play_mode=play_mode,
             play_mode_reason=reason,
             evidence=tuple(evidence),
+            notices=tuple(self.launch_notices),
         )
 
     # -- lanzamiento: botón "Jugar", diálogo de límites del regulador e iframe -------------
@@ -568,6 +588,9 @@ class BetssonSite:
         while time.monotonic() < deadline:
             if self.page.get_by_text(sel.LOGIN_TO_PLAY).filter(visible=True).count():
                 raise GameLaunchError("el juego pide iniciar sesión: llama a login() antes de open_game()")
+            if self._accept_pre_session_notice(evidence):
+                notes.add("pre_session_notice")
+                continue
             if "session_limits" not in notes and self._accept_session_limits(evidence):
                 notes.add("session_limits")
                 continue
@@ -612,11 +635,17 @@ class BetssonSite:
             return False
         dialog = dialog.last  # el más interno si los contenedores van anidados
         evidence.append(self.screenshot("session_limits_dialog"))
-        for pattern in (cfg.time_option_pattern, cfg.loss_option_pattern):
+        self._read_dialog_notices(dialog)
+        for pattern, required in ((cfg.time_option_pattern, True), (cfg.loss_option_pattern, False)):
             option = dialog.get_by_role("button", name=re.compile(pattern, re.I)).filter(visible=True)
-            if not option.count():
+            if option.count():
+                option.first.click()
+                continue
+            # Sin saldo, Betsson quita el bloque de límite de pérdidas (no hay nada que limitar).
+            loss_block = dialog.get_by_role("button", name=re.compile(r"\d+\s*%")).filter(visible=True)
+            if required or loss_block.count():
                 raise GameLaunchError(f"diálogo de límites de sesión sin la opción '{pattern}'")
-            option.first.click()
+            log.info("el diálogo no ofrece límite de pérdidas (sin saldo): solo se elige el tiempo")
         evidence.append(self.screenshot("session_limits_chosen"))
         dialog.get_by_role("button", name=submit_re).filter(visible=True).first.click()
         dialog.wait_for(state="hidden", timeout=DEFAULT_TIMEOUT_MS)
@@ -624,6 +653,50 @@ class BetssonSite:
             self.session.record_game_session()
         log.info("límites de sesión aceptados (los más prudentes de la configuración)")
         return True
+
+    def _accept_pre_session_notice(self, evidence: list[Path]) -> bool:
+        """Aviso de juego responsable antes de la sesión (p. ej. "Hace menos de 60 mins. que finalizaste…").
+
+        Se captura, se registra su texto y se acepta con el botón de iniciar la sesión, como haría el jugador.
+        """
+        cfg = self.market.site.session_limits
+        if cfg is None or not cfg.pre_session_notices:
+            return False
+        submit_re = re.compile(cfg.submit_pattern, re.I)
+        for pattern in cfg.pre_session_notices:
+            dialog = (
+                self.page.locator(sel.DIALOG_CONTAINERS)
+                .filter(visible=True)
+                .filter(has_text=re.compile(pattern, re.I))
+                .filter(has=self.page.get_by_role("button", name=submit_re))
+            )
+            if not dialog.count():
+                continue
+            dialog = dialog.last
+            evidence.append(self.screenshot("pre_session_notice"))
+            try:
+                text = " ".join(dialog.inner_text().split())[:300]
+                if text not in self.launch_notices:
+                    self.launch_notices.append(text)
+            except PlaywrightError:
+                pass
+            log.info("aviso previo de Betsson aceptado: %s", pattern)
+            dialog.get_by_role("button", name=submit_re).filter(visible=True).first.click()
+            dialog.wait_for(state="hidden", timeout=DEFAULT_TIMEOUT_MS)
+            return True
+        return False
+
+    def _read_dialog_notices(self, dialog: Locator) -> None:
+        """Guarda los avisos visibles del diálogo (p. ej. "No dispones de saldo…"): son lo que ve el jugador."""
+        try:
+            texts = dialog.locator("[role='alert'], [class*='warning' i], [class*='notice' i], [class*='info' i]")
+            for text in texts.filter(visible=True).all_inner_texts():
+                text = " ".join(text.split())
+                if text and text not in self.launch_notices:
+                    self.launch_notices.append(text)
+                    log.info("aviso de Betsson en el lanzamiento: %s", text)
+        except PlaywrightError:
+            log.warning("no se pudieron leer los avisos del diálogo de límites")
 
     def _session_limits_pending(self, wait_ms: int = 3_000) -> bool:
         """¿Aparece el diálogo de límites en breve? (señal: su título visible; tope corto)."""

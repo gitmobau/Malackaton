@@ -133,4 +133,7 @@ class BrowserSession:
         browser = playwright.chromium.connect_over_cdp(self.cdp_url)
         if not browser.contexts:
             raise SessionUnavailable("el Chrome de la sesión no tiene contexto de navegación")
-        return browser, browser.contexts[0].new_page()
+        page = browser.contexts[0].new_page()
+        # Una pestaña en segundo plano no se pinta y sus capturas se cuelgan: se trae al frente.
+        page.bring_to_front()
+        return browser, page

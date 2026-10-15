@@ -29,6 +29,8 @@ SEARCH_RESULT_LINK = "a[data-test-id='game-thumbnail-title']"
 LOGIN_TO_PLAY = re.compile(r"ingresar y jugar|log ?in and play|login to play", re.I)
 # Contenedores de diálogos modales (el de límites de sesión del regulador, por ejemplo).
 DIALOG_CONTAINERS = "[role='dialog'], dialog, [aria-modal='true'], [class*='modal' i], [class*='dialog' i]"
+# Parámetro con el que la web lanza el juego en Real Play desde su página.
+GAME_PLAY_QUERY = "gameAction=play"
 # Botón de la página del juego que lo lanza (con sesión iniciada).
 PLAY_BUTTON = re.compile(r"^\s*(jugar|jugar ahora|play|play now)\s*$", re.I)
 # Iframes de terceros que nunca son el juego.
@@ -47,11 +49,13 @@ USER_MENU = "[data-test-id='user-icon']"
 WAF_COOKIE = "aws-waf-token"  # la deja el desafío del WAF al terminar solo
 
 # --- Saldo (cabecera, con sesión iniciada) -------------------------------------
-BALANCE_CANDIDATES = (
-    "[data-test-id*='balance' i]",
-    "[data-testid*='balance' i]",
-    "[class*='balance' i]",
-)
+# Botón de saldo de la cabecera de la cuenta (verificado el 15-oct con sesión: "100,00 €"). SOLO de aquí se
+# lee el saldo: un texto con "€" cualquiera puede ser un banner ("¡5.000€ en juego…!").
+BALANCE_BUTTON = "[data-test-id='balance-button']"
+# En la página del juego la cabecera es otra: "Saldo ▾" (in-game-balance-button) abre un resumen cuyo
+# total es user-summary-balance (también hay bonus, bloqueado y retirable: NO son el saldo).
+IN_GAME_BALANCE_BUTTON = "[data-test-id='in-game-balance-button']"
+SUMMARY_BALANCE = "[data-test-id='user-summary-balance']"
 
 # --- API pública de juegos (la pide la propia página) -----------------------------
 GAME_API_FRAGMENT = "/api/v2/games/"

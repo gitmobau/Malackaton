@@ -13,7 +13,7 @@
   "number_format": { "thousands_sep": ".", "decimal_sep": ",", "decimals": 2 },
   "min_bet": "0.10",
   "expected_texts": {
-    "insufficient_funds": ["saldo insuficiente", "fondos insuficientes", "no tienes saldo suficiente", "no dispone de saldo suficiente"],
+    "insufficient_funds": ["saldo insuficiente", "fondos insuficientes", "no tienes saldo suficiente", "no dispone de saldo suficiente", "no dispones de saldo"],
     "balance_labels": ["saldo", "crédito", "credito"],
     "bet_labels": ["apuesta"],
     "win_labels": ["ganancia", "premio", "ganado"]
@@ -32,6 +32,7 @@
       "time_option_pattern": "^\\s*5 ?horas?\\s*$",
       "loss_option_pattern": "^\\s*25\\s*%",
       "session_hours": 5,
+      "pre_session_notices": ["hace menos de \\d+ min\\S* que finalizaste tu sesi[oó]n de juego"],
       "submit_pattern": "^\\s*iniciar sesi[oó]n\\s*$",
       "existing_session_pattern": "ya (tienes|hay|existe) (una )?sesi[oó]n|sesi[oó]n (de juego )?(activa|en curso)"
     }
