@@ -6,12 +6,17 @@ from pathlib import Path
 PROVIDER_UI_CHANGED = "PROVIDER_UI_CHANGED"
 
 
-class ProviderUIChanged(Exception):
-    """Ningún perfil reconoce el juego (ni recalibrando, ni con generic-vision).
+class GameOpenError(Exception):
+    """La web de Betsson no pudo abrir el juego en Real Play (A). Es fallo de integración."""
 
-    No es un fallo de integración de Betsson: las comprobaciones de pantalla
-    quedan como FAIL no concluyente con failure_kind="provider_ui_changed" y un
-    aviso para mantener el perfil.
+
+class ProviderUIChanged(Exception):
+    """El perfil de un proveedor conocido ya no reconoce su juego (deriva).
+
+    Lo lanza ProviderRegistry.ensure_recognized() (B). Un proveedor desconocido no
+    lo lanza: resolve() devuelve generic-vision. No es un fallo de integración de
+    Betsson: las comprobaciones de pantalla quedan como FAIL no concluyente con
+    failure_kind="provider_ui_changed" (reason "PROVIDER_UI_CHANGED: …") y un aviso.
     """
 
     code = PROVIDER_UI_CHANGED

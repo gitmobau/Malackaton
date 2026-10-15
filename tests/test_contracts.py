@@ -163,3 +163,93 @@ def test_provider_ui_changed_carries_reason() -> None:
     err = ProviderUIChanged("ningún perfil supera 0.5", evidence=[Path("frame.png")])
     assert err.code == "PROVIDER_UI_CHANGED"
     assert err.reason == "ningún perfil supera 0.5"
+
+
+# --- Cambios de la revisión (python-reviewer) ----------------------------------
+
+
+def test_money_rejects_float_and_non_ascii() -> None:
+    with pytest.raises(ValidationError):
+        Money(amount=0.1, currency="EUR")  # type: ignore[arg-type]
+    with pytest.raises(ValidationError):
+        Money(amount=Decimal("1"), currency="ÉUR")
+
+
+def test_money_prints_plain_decimals() -> None:
+    m = Money(amount=Decimal("1E+2"), currency="EUR")
+    assert str(m) == "100 EUR"
+    assert '"amount":"100"' in m.model_dump_json()
+
+
+def test_reading_without_money_always_has_inconclusive_reason() -> None:
+    assert Reading().reason == "inconclusive: sin lectura"
+    assert Reading(reason="OCR 0.3").reason == "inconclusive: OCR 0.3"
+
+
+def test_message_unknown_is_not_false() -> None:
+    from betsson.core import Message
+
+    assert Message().matches_insufficient is None
+
+
+def test_spin_end_signal_rejects_instant_end() -> None:
+    from betsson.core import SpinEndSignal
+
+    with pytest.raises(ValidationError):
+        SpinEndSignal(stable_frames=0)
+    with pytest.raises(ValidationError):
+        SpinEndSignal(timeout_s=0)
+
+
+def test_run_rejects_checks_from_other_scenario() -> None:
+    with pytest.raises(ValidationError):
+        RunResult(
+            run_id="r1",
+            market="es",
+            scenario=Scenario.S1,
+            results=(CheckResult.passed(CheckId.SPIN_REJECTED, "ok"),),
+        )
+
+
+def test_integration_reason_cannot_look_inconclusive() -> None:
+    with pytest.raises(ValidationError):
+        CheckResult.failed(CheckId.LOGIN_OK, "inconclusive: no sé")
+
+
+@pytest.mark.parametrize(
+    ("last", "error", "outcome"),
+    [
+        (CheckResult.passed(CheckId.WAGER_IS_USED_WAGER, "ok"), None, "PASS"),
+        (CheckResult.inconclusive(CheckId.WAGER_IS_USED_WAGER, "x"), None, "INCONCLUSIVE"),
+        (CheckResult.ui_changed(CheckId.WAGER_IS_USED_WAGER, "x"), None, "PROVIDER_UI_CHANGED"),
+        (CheckResult.failed(CheckId.WAGER_IS_USED_WAGER, "x"), None, "FAIL"),
+        (CheckResult.passed(CheckId.WAGER_IS_USED_WAGER, "ok"), "timeout del login", "FAIL"),
+    ],
+)
+def test_run_outcome_separates_real_failures(last: CheckResult, error: str | None, outcome: str) -> None:
+    run = RunResult(run_id="r1", market="es", scenario=Scenario.S1, results=all_pass(Scenario.S1)[:-1] + (last,), error=error)
+    assert run.outcome == outcome
+    assert run.verdict == ("PASS" if outcome == "PASS" else "FAIL")
+
+
+def test_integration_failure_wins_over_ui_changed() -> None:
+    results = all_pass(Scenario.S1)[:-2] + (
+        CheckResult.ui_changed(CheckId.BETSSON_BALANCE_RECONCILES, "x"),
+        CheckResult.failed(CheckId.WAGER_IS_USED_WAGER, "no se descontó"),
+    )
+    assert RunResult(run_id="r1", market="es", scenario=Scenario.S1, results=results).outcome == "FAIL"
+
+
+def test_missing_checks_are_inconclusive_not_integration() -> None:
+    assert RunResult(run_id="r1", market="es", scenario=Scenario.S2).outcome == "INCONCLUSIVE"
+
+
+def test_evidence_paths_serialise_with_forward_slashes() -> None:
+    r = CheckResult.passed(CheckId.LOGIN_OK, "ok", evidence=(Path("es") / "S1" / "login.png",))
+    assert '"es/S1/login.png"' in r.model_dump_json()
+
+
+def test_read_json_rejects_other_schema_version(tmp_path: Path) -> None:
+    path = RunResult(run_id="r1", market="es", scenario=Scenario.S1, schema_version=99).write_json(tmp_path / "r.json")
+    with pytest.raises(ValueError):
+        RunResult.read_json(path)

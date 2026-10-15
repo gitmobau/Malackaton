@@ -17,9 +17,12 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validat
 
 from betsson.core.errors import PROVIDER_UI_CHANGED
 from betsson.core.ids import SCENARIO_CHECKS, CheckId, Scenario
+from betsson.core.interfaces import INCONCLUSIVE_PREFIX, EvidencePath
 
 Status = Literal["PASS", "FAIL"]
-INCONCLUSIVE_PREFIX = "inconclusive: "
+# Resumen para informe y CI: distingue un FAIL real de lo no concluyente.
+Outcome = Literal["PASS", "FAIL", "INCONCLUSIVE", "PROVIDER_UI_CHANGED"]
+UI_CHANGED_PREFIX = f"{PROVIDER_UI_CHANGED}: "
 SCHEMA_VERSION = 1
 
 
@@ -40,7 +43,7 @@ class CheckResult(BaseModel):
     failure_kind: FailureKind | None = None
     expected: str | None = None
     observed: str | None = None
-    evidence: tuple[Path, ...] = ()
+    evidence: tuple[EvidencePath, ...] = ()
 
     @model_validator(mode="after")
     def _coherent(self) -> CheckResult:
@@ -50,8 +53,12 @@ class CheckResult(BaseModel):
             raise ValueError("un FAIL necesita failure_kind")
         if not self.reason.strip():
             raise ValueError("reason no puede estar vacío")
-        if self.failure_kind is FailureKind.INCONCLUSIVE and not self.reason.startswith(INCONCLUSIVE_PREFIX):
-            raise ValueError(f"un no concluyente debe empezar por {INCONCLUSIVE_PREFIX!r}")
+        prefixes = {FailureKind.INCONCLUSIVE: INCONCLUSIVE_PREFIX, FailureKind.PROVIDER_UI_CHANGED: UI_CHANGED_PREFIX}
+        expected = prefixes.get(self.failure_kind) if self.failure_kind else None
+        if expected and not self.reason.startswith(expected):
+            raise ValueError(f"el motivo debe empezar por {expected!r}")
+        if self.failure_kind is FailureKind.INTEGRATION and self.reason.startswith(tuple(prefixes.values())):
+            raise ValueError("un fallo de integración no puede llevar prefijo de no concluyente")
         return self
 
     @classmethod
@@ -72,7 +79,7 @@ class CheckResult(BaseModel):
         return cls(
             id=id,
             status="FAIL",
-            reason=f"{PROVIDER_UI_CHANGED}: {why}",
+            reason=why if why.startswith(UI_CHANGED_PREFIX) else UI_CHANGED_PREFIX + why,
             failure_kind=FailureKind.PROVIDER_UI_CHANGED,
             **extra,
         )
@@ -97,13 +104,17 @@ class RunResult(BaseModel):
     finished_at: datetime | None = None
     results: tuple[CheckResult, ...] = ()
     warnings: tuple[str, ...] = ()  # p. ej. "PROVIDER_UI_CHANGED: …", "mercado configurado sin cuenta"
-    evidence: tuple[Path, ...] = ()  # vídeo, traza, capturas generales
+    error: str | None = None  # la ejecución se cortó (timeout, crash del navegador…): el run es FAIL
+    evidence: tuple[EvidencePath, ...] = ()  # vídeo, traza, capturas generales (relativas al run)
 
     @model_validator(mode="after")
-    def _no_duplicates(self) -> RunResult:
+    def _valid_checks(self) -> RunResult:
         ids = [r.id for r in self.results]
         if len(ids) != len(set(ids)):
             raise ValueError("comprobación repetida en results")
+        foreign = [i.value for i in ids if i not in SCENARIO_CHECKS[self.scenario]]
+        if foreign:
+            raise ValueError(f"comprobaciones que no son de {self.scenario.value}: {foreign}")
         return self
 
     @computed_field  # type: ignore[prop-decorator]
@@ -116,8 +127,21 @@ class RunResult(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def verdict(self) -> Status:
-        ok = bool(self.results) and not self.missing_checks and all(r.status == "PASS" for r in self.results)
-        return "PASS" if ok else "FAIL"
+        return "PASS" if self.outcome == "PASS" else "FAIL"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def outcome(self) -> Outcome:
+        """FAIL si hay un fallo de integración o un error; si no, PROVIDER_UI_CHANGED,
+        luego INCONCLUSIVE (incluye comprobaciones sin resultado) y por último PASS."""
+        kinds = {r.failure_kind for r in self.results}
+        if self.error or FailureKind.INTEGRATION in kinds:
+            return "FAIL"
+        if FailureKind.PROVIDER_UI_CHANGED in kinds:
+            return "PROVIDER_UI_CHANGED"
+        if FailureKind.INCONCLUSIVE in kinds or self.missing_checks:
+            return "INCONCLUSIVE"
+        return "PASS"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -131,5 +155,7 @@ class RunResult(BaseModel):
 
     @classmethod
     def read_json(cls, path: Path) -> RunResult:
-        data = cls.model_validate_json(path.read_text(encoding="utf-8"))
-        return data
+        run = cls.model_validate_json(path.read_text(encoding="utf-8"))
+        if run.schema_version != SCHEMA_VERSION:
+            raise ValueError(f"results.json con schema_version {run.schema_version}; se esperaba {SCHEMA_VERSION}")
+        return run
