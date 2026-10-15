@@ -1,0 +1,28 @@
+{
+  "id": "com",
+  "name": "Malta (betsson.com, inglés)",
+  "base_url": "https://www.betsson.com/en",
+  "locale": "en-MT",
+  "language": "en",
+  "timezone": "Europe/Malta",
+  "currency": {
+    "code": "EUR",
+    "symbols": ["€", "EUR"],
+    "symbol_position": "before"
+  },
+  "number_format": { "thousands_sep": ",", "decimal_sep": ".", "decimals": 2 },
+  "min_bet": "0.10",
+  "expected_texts": {
+    "insufficient_funds": ["insufficient funds", "insufficient balance", "not enough funds", "not enough balance"],
+    "balance_labels": ["balance", "credit"],
+    "bet_labels": ["bet", "stake"],
+    "win_labels": ["win", "won"]
+  },
+  "credentials_env": {
+    "username": "BETSSON_COM_USERNAME",
+    "password": "BETSSON_COM_PASSWORD"
+  },
+  "site": { "casino_path": "/casino" },
+  "real_execution_enabled": false,
+  "verified": false
+}
