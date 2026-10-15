@@ -12,13 +12,14 @@ import random
 import re
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import parse_qsl, urlparse
 
 import numpy as np
 from PIL import Image
-from playwright.sync_api import ElementHandle, Frame, Locator, Page, Response
+from playwright.sync_api import Browser, ElementHandle, Frame, Locator, Page, Playwright, Response
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
@@ -28,6 +29,7 @@ from betsson.market.schema import Market
 from betsson.site import selectors as sel
 from betsson.site.credentials import Credentials, credentials_for
 from betsson.site.pacing import Pacer, human_pause, typing_delay_ms
+from betsson.site.session import BrowserSession
 from betsson.site.tracing import NoTrace, TraceControl, trace_paused
 
 log = logging.getLogger(__name__)
@@ -47,10 +49,11 @@ _REAL_TOKENS = {"real", "realmoney", "real_money", "money", "cash"}
 
 # Cuenta de prueba: "funded" (con saldo, S1) o "empty" (sin saldo, S2: BETSSON_<MERCADO>_EMPTY_*).
 Account = Literal["funded", "empty"]
-# "auto": el comprobador escribe las credenciales. "assisted" (plan B, solo con el visto bueno de los
-# mentores): una PERSONA las escribe en la ventana y el comprobador sigue solo; el informe lo dice.
-LoginMode = Literal["auto", "assisted"]
-ASSISTED_LOGIN_TIMEOUT_MS = 5 * 60_000
+# "auto": el comprobador escribe las credenciales (Betsson lo rechaza: ver handoff).
+# "session": una PERSONA inició sesión en un Chrome normal (login asistido, autorizado por un mentor) y
+# el comprobador solo se conecta por CDP y sigue; nunca escribe credenciales. El informe lo dice.
+LoginMode = Literal["auto", "session"]
+SESSION_CHECK_TIMEOUT_MS = 20_000
 
 
 class SiteError(RuntimeError):
@@ -116,6 +119,7 @@ class BetssonSite:
         *,
         account: Account = "funded",
         login_mode: LoginMode = "auto",
+        session: BrowserSession | None = None,
         evidence_dir: Path | None = None,
         trace: TraceControl | None = None,
         pacer: Pacer | None = None,
@@ -125,7 +129,12 @@ class BetssonSite:
         self.market = market
         self.account = account
         self.login_mode = login_mode
-        self.login_assisted = False  # True si la sesión la inició una persona (se muestra en el informe)
+        self.session = session
+        # Contrato de core: True desde el principio en modo "session" (aunque luego no haya sesión), para que
+        # login_ok salga "inconclusive" y no FAIL de Betsson. login_assisted_at: hora del login de la persona.
+        self.login_assisted = login_mode == "session"
+        self.login_assisted_at: datetime | None = None
+        self.login_note: str | None = None  # motivo legible de login_ok para el informe
         self.evidence_dir = evidence_dir or Path("outputs") / "site" / market.id
         self.last_login_error: str | None = None
         self._trace = trace or NoTrace()
@@ -136,6 +145,28 @@ class BetssonSite:
         page.set_default_timeout(timeout_ms)
         page.on("response", self._capture_game_api)
         page.add_locator_handler(page.locator(sel.COOKIE_BANNER), self._reject_cookies)
+
+    @classmethod
+    def attach_cdp(
+        cls,
+        playwright: Playwright,
+        market: Market,
+        *,
+        account: Account = "funded",
+        evidence_dir: Path | None = None,
+        trace: TraceControl | None = None,
+    ) -> tuple[BetssonSite, Browser]:
+        """Se conecta por CDP al Chrome con la sesión iniciada a mano y devuelve el site en modo "session".
+
+        El puerto sale de config/markets/<m>.json (site.browser_session.cdp_ports). Lanza SessionUnavailable
+        si no hay Chrome escuchando. Al terminar: page.close(); NUNCA browser.close() ni logout (se perdería la sesión).
+        """
+        session = BrowserSession(market, account)
+        browser, page = session.connect(playwright)
+        site = cls(
+            page, market, account=account, login_mode="session", session=session, evidence_dir=evidence_dir, trace=trace
+        )
+        return site, browser
 
     # ------------------------------------------------------------------ evidencias
 
@@ -205,8 +236,8 @@ class BetssonSite:
 
         Faltar las variables de entorno no es un rechazo: lanza MissingCredentialsError.
         """
-        if self.login_mode == "assisted":
-            return self._assisted_login()
+        if self.login_mode == "session":
+            return self._use_existing_session()
         creds = credentials or credentials_for(self.market, insufficient_funds=self.account == "empty")
         self.last_login_error = None
         if not self.page.url.startswith(self.market.origin):
@@ -244,33 +275,33 @@ class BetssonSite:
         log.info("sesión iniciada en %s (cuenta %s)", self.market.id, self.account)
         return True
 
-    def _assisted_login(self) -> bool:
-        """Plan B: abre el formulario y ESPERA a que una persona escriba y envíe. Traza detenida mientras tanto."""
+    def _use_existing_session(self) -> bool:
+        """Comprueba la sesión iniciada a mano. Nunca escribe credenciales ni intenta un login de reserva."""
         self.last_login_error = None
         if not self.page.url.startswith(self.market.origin):
             self.goto_lobby()
-        if self.page.locator(sel.LOGIN_PASSWORD).filter(visible=True).count() == 0:
-            self._pacer.wait_turn()
-            self._human_click(self.page.get_by_text(sel.LOGIN_OPEN).filter(visible=True).first)
-        password = self.page.locator(sel.LOGIN_PASSWORD)
-        password.wait_for(state="visible")
-        self._mask(self.page.locator(sel.LOGIN_USERNAME))
-        self._mask(password)
-        log.warning("LOGIN ASISTIDO: escribe las credenciales en la ventana de Chrome y pulsa 'Iniciar sesión' "
-                    "(tienes %d min). La traza está detenida.", ASSISTED_LOGIN_TIMEOUT_MS // 60_000)
-        with trace_paused(self._trace):
-            try:  # señal: el formulario desaparece cuando Betsson acepta el login
-                password.wait_for(state="detached", timeout=ASSISTED_LOGIN_TIMEOUT_MS)
+        deadline = time.monotonic() + SESSION_CHECK_TIMEOUT_MS / 1000
+        while time.monotonic() < deadline:
+            try:
+                if self._balance_toggle() is not None or self._find_balance_locator() is not None:
+                    break
+                if self.page.get_by_text(sel.LOGIN_OPEN).filter(visible=True).count():
+                    deadline = 0  # se ofrece "Iniciar sesión": no hay sesión
+                    break
+                self.page.wait_for_event("requestfinished", timeout=_POLL_MS)
             except PlaywrightError:
-                self.last_login_error = f"login asistido sin completar en {self.market.id}: {self._visible_error()}"
-            finally:
-                self._clear_fields(self.page.locator(sel.LOGIN_USERNAME), password)
-        if self.last_login_error:
+                continue
+        if not self.is_logged_in():
+            self.last_login_error = "inconclusive: sesión caducada o ausente; repetir login asistido"
             log.warning("%s", self.last_login_error)
-            self.screenshot("login_rejected")
+            self.screenshot("session_missing")
             return False
-        self.login_assisted = True
-        log.info("sesión iniciada en %s por una persona (login asistido)", self.market.id)
+        when = self.session.logged_in_at if self.session else None
+        self.login_assisted_at = when.astimezone() if when else None
+        self.login_note = "sesión de jugador válida (login asistido por una persona" + (
+            f" a las {when:%H:%M})" if when else ")"
+        )
+        log.info("%s", self.login_note)
         return True
 
     def _human_click(self, target: Locator) -> None:
@@ -538,6 +569,9 @@ class BetssonSite:
             if "session_limits" not in notes and self._accept_session_limits(evidence):
                 notes.add("session_limits")
                 continue
+            if "existing_session" not in notes and self._existing_game_session_notice():
+                notes.add("existing_session")  # es un motivo, no un fallo: se sigue lanzando el juego
+                evidence.append(self.screenshot("existing_game_session"))
             play = self.page.get_by_role("button", name=sel.PLAY_BUTTON).filter(visible=True)
             if "play_clicked" not in notes and play.count():
                 play.first.click()
@@ -580,8 +614,20 @@ class BetssonSite:
         evidence.append(self.screenshot("session_limits_chosen"))
         dialog.get_by_role("button", name=submit_re).filter(visible=True).first.click()
         dialog.wait_for(state="hidden", timeout=DEFAULT_TIMEOUT_MS)
+        if self.session is not None:
+            self.session.record_game_session()
         log.info("límites de sesión aceptados (los más prudentes de la configuración)")
         return True
+
+    def _existing_game_session_notice(self) -> bool:
+        cfg = self.market.site.session_limits
+        if cfg is None or not cfg.existing_session_pattern:
+            return False
+        notice = self.page.get_by_text(re.compile(cfg.existing_session_pattern, re.I)).filter(visible=True)
+        if notice.count():
+            log.info("Betsson indica que ya hay una sesión de juego activa: se sigue sin el diálogo de límites")
+            return True
+        return False
 
     def _find_game_iframe(self) -> ElementHandle | None:
         """El iframe de primer nivel más grande que no es de terceros conocidos."""
@@ -650,4 +696,10 @@ class BetssonSite:
             return "real", f"la URL indica dinero real ({sorted(tokens & _REAL_TOKENS)})"
         if "session_limits" in notes:
             return "real", "Betsson pidió límites de sesión del regulador antes de lanzar (solo se piden con dinero real)"
+        accepted = self.session.game_session_at if self.session else None
+        if accepted is not None and accepted.date() == datetime.now().date():
+            return "real", (
+                f"sesión de juego del regulador activa desde las {accepted:%H:%M} (límites aceptados en una "
+                "ejecución anterior; solo existen con dinero real)"
+            )
         return "unknown", "ni la URL ni el lanzamiento indican el modo"

@@ -10,12 +10,15 @@ from betsson.site.betsson_site import (
     LoginError,
     SiteError,
 )
+from betsson.site.session import BrowserSession, SessionUnavailable
 from betsson.site.credentials import Credentials, MissingCredentialsError, credentials_for
 from betsson.site.tracing import NoTrace, SegmentedTrace, TraceControl, trace_paused
 
 __all__ = [
     "Account",
     "BetssonSite",
+    "BrowserSession",
+    "SessionUnavailable",
     "LoginMode",
     "Credentials",
     "GameHandle",
