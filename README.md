@@ -52,8 +52,15 @@ Abre **PowerShell** (no hace falta como administrador).
 
    La primera vez te pedirá iniciar sesión con tu cuenta de Claude.
 
-5. **Comprueba que ECC está cargado** preguntándole a Claude: *"¿Qué skills y agentes de ECC tienes?"*.
-   Los comandos van sin prefijo: `/plan`, `/code-review`, `/build-fix`.
+5. **Instala el plugin ECC (el mismo que usa el coordinador).** El repo lo declara en `.claude/settings.json`.
+   Al abrir `claude` en el repo, acepta confiar en la carpeta e **instala `ecc@ecc`** cuando te lo pida.
+   Si no te lo pide, ejecuta `/plugin` y busca `ecc` en el marketplace `ecc`.
+   En las opciones del plugin, deja **`hooks_enabled = true`** y **`hook_profile = standard`**. Esta preferencia es personal y se guarda en tu configuración de usuario.
+   Después ejecuta `/reload-plugins`.
+
+6. **Comprueba que ECC está cargado** preguntándole a Claude: *"¿Qué skills y agentes de ECC tienes?"*.
+   Con el plugin, los comandos llevan prefijo (`/ecc:plan`, `/ecc:code-review`, `/ecc:build-fix`) y deberías ver unos 77 agentes `ecc:*`.
+   La copia suelta de `.claude/` (comandos sin prefijo) se queda solo para las sesiones en la nube.
 
 ### Dónde queda cada cosa
 
