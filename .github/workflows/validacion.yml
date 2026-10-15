@@ -6,6 +6,9 @@ on:
       markets:
         description: "Mercados a ejecutar en real, separados por comas (es, com, pe)"
         default: "es"
+      game_slug:
+        description: "Slug del juego en Betsson (vacío = variable del repo GAME_SLUG)"
+        default: ""
   pull_request:
   push:
     branches: [main]
@@ -54,6 +57,8 @@ jobs:
             secret_prefix: PE
     env:
       MARKET: ${{ matrix.market }}
+      # Juego a validar (lo lee el test real de C; si falta, el test se salta con motivo).
+      GAME_SLUG: ${{ github.event.inputs.game_slug || vars.GAME_SLUG }}
       RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       # Activo solo si está en la lista (sin espacios: "es,com"); el input vale "es" por defecto.
       # "ninguno" = ningún mercado (vacío no vale: GitHub lo cambia por el valor por defecto).
