@@ -1,12 +1,17 @@
 """Validación real: A (web de Betsson) + B (ojos y perfiles) + C (escenarios e informe).
 
 Solo en el runner propio en España: `pytest -m real --market es --headed`.
-- El juego se elige con GAME_SLUG (variable de entorno o secreto de la CI): ningún
-  proveedor ni juego fijo en el código.
+- El juego se elige con GAME_SLUG (variable de entorno o de la CI): ningún proveedor ni
+  juego fijo en el código.
 - Los mercados con real_execution_enabled=false (sin cuenta) se saltan con motivo.
 - S1 usa la cuenta con saldo y S2 la cuenta sin saldo (account="empty").
-- La traza la gestiona A por trozos y se pausa durante el login; por eso el contexto
-  se crea aquí y no con el fixture `context` de pytest-playwright (que grabaría el login).
+- Modo de login (LOGIN_MODE):
+  - "session" (por defecto si el mercado tiene site.browser_session): login asistido por
+    una persona, autorizado por los mentores. El comprobador se conecta por CDP al Chrome
+    con la sesión iniciada a mano (un puerto por cuenta), abre su propia pestaña y al
+    terminar la cierra; nunca cierra el navegador ni hace logout. Sin traza: no se graba
+    la sesión de la persona. Sin Chrome escuchando o con la sesión caducada → skip con motivo.
+  - "auto": login automatizado con la traza por trozos de A, pausada durante el login.
 - Deja results.json y report.html en outputs/runs/<runId>/<market>/<S1|S2>/ y el índice
   del run en outputs/runs/<runId>/report.html.
 - Compara cada juego con su huella de la última ejecución buena (outputs/baselines/ o
@@ -22,7 +27,7 @@ from typing import Any
 import pytest
 
 from betsson.checks.scenario import run_scenario
-from betsson.core import RunResult, Scenario
+from betsson.core import CheckId, FailureKind, RunResult, Scenario
 from betsson.report.fingerprint import BaselineStore
 from betsson.report.html import render_index
 
@@ -55,6 +60,15 @@ def slug() -> str:
     return value
 
 
+@pytest.fixture(scope="module")
+def login_mode(market: Any) -> str:
+    has_session = getattr(getattr(market, "site", None), "browser_session", None) is not None
+    mode = os.getenv("LOGIN_MODE", "session" if has_session else "auto").strip().lower()
+    if mode not in {"session", "auto"}:
+        pytest.fail(f"LOGIN_MODE desconocido: {mode!r} (session | auto)")
+    return mode
+
+
 def _scenario_dir(evidence_dir: Path, scenario: Scenario) -> Path:
     # evidence_dir = outputs/runs/<runId>/<market>/<test>/ (conftest de D)
     out = evidence_dir.parent / scenario.value
@@ -62,30 +76,49 @@ def _scenario_dir(evidence_dir: Path, scenario: Scenario) -> Path:
     return out
 
 
+class _Player:
+    """Abre la web de Betsson para una cuenta y la cierra bien al terminar."""
+
+    def __init__(self, request: pytest.FixtureRequest, market: Any, mode: str) -> None:
+        self.request, self.market, self.mode = request, market, mode
+        self._close: list[Any] = []
+
+    def site(self, account: str, out: Path) -> Any:
+        if self.mode == "session":
+            playwright = self.request.getfixturevalue("playwright")
+            try:
+                site, _browser = site_mod.BetssonSite.attach_cdp(playwright, self.market, account=account,
+                                                                 evidence_dir=out)
+            except site_mod.SessionUnavailable as exc:
+                pytest.skip(f"login asistido: no hay sesión de jugador disponible para '{account}' ({exc})")
+            self._close.append(site.page.close)  # solo nuestra pestaña: nunca browser.close() ni logout
+            return site
+        browser = self.request.getfixturevalue("browser")
+        context = browser.new_context(viewport=VIEWPORT, device_scale_factor=1, locale=self.market.locale,
+                                      timezone_id=self.market.timezone)
+        context.tracing.start(screenshots=True, snapshots=True)
+        trace = site_mod.ChunkedTrace(context, out)
+        self._close.append(lambda: (context.tracing.stop(path=out / "trace-final.zip"), context.close()))
+        return site_mod.BetssonSite(context.new_page(), self.market, account=account, evidence_dir=out, trace=trace)
+
+    def close(self) -> None:
+        for fn in reversed(self._close):
+            try:
+                fn()
+            except Exception:  # cerrar no debe tapar el resultado del test
+                pass
+
+
 @pytest.fixture
-def player(browser: Any, market: Any) -> Iterator[Any]:
-    """Contexto de navegador como un jugador, con traza por trozos (A la pausa en el login)."""
-    context = browser.new_context(viewport=VIEWPORT, device_scale_factor=1, locale=market.locale,
-                                  timezone_id=market.timezone)
-    context.tracing.start(screenshots=True, snapshots=True)
-    holder: dict[str, Any] = {"context": context, "out": None}
-    yield holder
-    out = holder["out"]
-    if out is not None:
-        context.tracing.stop(path=out / "trace-final.zip")
-    else:
-        context.tracing.stop()
-    context.close()
+def player(request: pytest.FixtureRequest, market: Any, login_mode: str) -> Iterator[_Player]:
+    p = _Player(request, market, login_mode)
+    yield p
+    p.close()
 
 
-def _run(scenario: Scenario, player: dict[str, Any], market: Any, slug: str, run_id: str,
-         evidence_dir: Path) -> RunResult:
+def _run(scenario: Scenario, player: _Player, market: Any, slug: str, run_id: str, evidence_dir: Path) -> RunResult:
     out = _scenario_dir(evidence_dir, scenario)
-    player["out"] = out
-    context = player["context"]
-    page = context.new_page()
-    trace = site_mod.ChunkedTrace(context, out)
-    site = site_mod.BetssonSite(page, market, account=ACCOUNTS[scenario], evidence_dir=out, trace=trace)
+    site = player.site(ACCOUNTS[scenario], out)
     site.goto_lobby()
     run = run_scenario(
         market=market, scenario=scenario, site=site,
@@ -94,6 +127,9 @@ def _run(scenario: Scenario, player: dict[str, Any], market: Any, slug: str, run
         slug=slug, out_dir=out, run_id=run_id, baselines=BASELINES,
     )
     render_index(out.parent.parent)
+    login = next((r for r in run.results if r.id is CheckId.LOGIN_OK), None)
+    if run.results and login is not None and login.failure_kind is FailureKind.INCONCLUSIVE and site.login_assisted:
+        pytest.skip(f"login asistido: {login.reason} (results.json escrito en {out.name}/)")
     return run
 
 
@@ -103,13 +139,11 @@ def _summary(run: RunResult) -> str:
     return "\n".join([head, *bad])
 
 
-def test_real_s1_spin_completed(player: dict[str, Any], market: Any, slug: str, run_id: str,
-                                evidence_dir: Path) -> None:
+def test_real_s1_spin_completed(player: _Player, market: Any, slug: str, run_id: str, evidence_dir: Path) -> None:
     run = _run(Scenario.S1, player, market, slug, run_id, evidence_dir)
     assert run.verdict == "PASS", _summary(run)
 
 
-def test_real_s2_insufficient_funds(player: dict[str, Any], market: Any, slug: str, run_id: str,
-                                    evidence_dir: Path) -> None:
+def test_real_s2_insufficient_funds(player: _Player, market: Any, slug: str, run_id: str, evidence_dir: Path) -> None:
     run = _run(Scenario.S2, player, market, slug, run_id, evidence_dir)
     assert run.verdict == "PASS", _summary(run)
