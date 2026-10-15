@@ -61,7 +61,8 @@ def reconcile(
         return CheckResult.inconclusive(check_id, problem, evidence=evidence)
 
     b, w, p, a = (amounts[k] for k in readings)
-    expected = b - w + p
+    # FALLO PROVOCADO (rama demo/fallo-provocado, NUNCA a main): la apuesta se resta dos veces.
+    expected = b - w - w + p
     diff = abs(a.amount - expected.amount)
     detail = f"{b} − {w} + {p} = {expected}; leído {a}; diferencia {diff} (tolerancia {tolerance})"
     return _verdict(check_id, diff <= tolerance, "cuadra", "no cuadra", detail, expected, a, evidence)
