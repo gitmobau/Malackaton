@@ -13,7 +13,7 @@
 | **A, Betsson web y mercados**: **Maiki** (portátil del coordinador) | Cookies, login, saldo de Betsson, búsqueda y apertura del juego en Real Play. **Multimercado**: esquema de configuración, `es`/`com`/`pe`, `parse_money` y sus tests. **Coordinación**: mantiene `docs/` al día | `betsson/site/`, `betsson/market/`, `config/markets/`, `docs/` |
 | **B, ojos sobre el juego y proveedores**: **Alejandro** | Motor genérico (OCR, comparación de imágenes, plantillas, visión con IA opcional), **perfiles de proveedor enchufables** (Pragmatic primero, después `generic-vision` y un segundo proveedor), detección de la tirada y de su fin, mensaje de saldo insuficiente | `betsson/game/`, `betsson/vision/`, `betsson/profiles/`, `fixtures/<proveedor>/` |
 | **C, escenarios e informe**: **Migue** | Contratos, comprobaciones, regla del saldo, `results.json`, informe HTML, evidencias | `betsson/core/` (contratos: dueño único), `betsson/checks/`, `betsson/report/`, `tests/` |
-| **D, CI e infraestructura**: **Guilli** | Esqueleto, workflow, runner propio en España (en el portátil de Maiki, como servicio aparte; lanzar la CI cuando A y B no estén con el navegador), secretos, Oracle, Pages, README y demo | raíz, `.github/`, `requirements.txt`, `pytest.ini`, `setup-portatil.ps1` |
+| **D, CI e infraestructura**: **Guilli** | Esqueleto, workflow, runner propio en España (en el portátil de Alejandro, arrancado en una terminal con `run.cmd` y **no como servicio de Windows**, porque el navegador visible necesita escritorio; lanzar la CI cuando A y B no estén usando el navegador), secretos, Oracle, Pages, README y demo | raíz, `.github/`, `requirements.txt`, `pytest.ini`, `setup-portatil.ps1` |
 
 Reglas:
 - **Extensibilidad**: la palabra "pragmatic" solo puede aparecer dentro de `profiles/pragmatic/` y `fixtures/pragmatic/`. Escenarios y comprobaciones hablan solo con `ProviderProfile`.
@@ -22,7 +22,7 @@ Reglas:
 
 ## Modo de trabajo: un solo portátil (decisión del 15-oct)
 
-Las 4 sesiones de Claude corren en **el portátil de Maiki**, una por área, cada una en **su propio worktree de git** (misma historia, carpeta y rama distintas). Cada miembro se conecta a su sesión con **Remote Control** (`/remote-control`). Si nos atascamos (CPU, límites de uso, navegadores), se pasa un área a un segundo portátil con el mismo repo.
+Las 4 sesiones de Claude corren en **el portátil de Alejandro** (migrado desde el de Maiki el 15-oct por RAM y CPU; ver `coordinacion/README.md`), una por área, cada una en **su propio worktree de git** (misma historia, carpeta y rama distintas). Cada miembro se conecta a su sesión con **Remote Control** (`/remote-control`). Si nos atascamos (CPU, límites de uso, navegadores), se pasa un área a un segundo portátil con el mismo repo.
 
 | Área | Carpeta (worktree) | Rama |
 |---|---|---|
@@ -44,7 +44,7 @@ Reglas del modo de un portátil:
 **Cómo se evita esperar a los demás:**
 1. **Contratos v0 ya escritos** en `PREPARACION.md` §3: ids de las comprobaciones, forma de `results.json` y métodos de `ProviderProfile`. Cada área programa contra ellos desde el minuto 0. C los pasa a código (`betsson/core/`, con pydantic) en **30 min** como primer PR; si hay que cambiarlos, se pide por PR.
 2. **Cada área tiene sus carpetas** (tabla de arriba). No hay archivos compartidos, así que no hay conflictos.
-3. **`requirements.txt` con todas las dependencias desde el principio**: D añade al que ya existe `pytest`, `pytest-playwright`, `opencv-python`, `rapidocr-onnxruntime`, `pydantic`, `imagehash` y `jinja2`. Ya estaban `playwright`, `pillow`, `numpy`, `python-dotenv` y `anthropic`. Cada uno ejecuta `pip install -r requirements.txt` en su `.venv`. Nadie más toca `requirements.txt` hasta el primer hito.
+3. **`requirements.txt` con todas las dependencias desde el principio**: D añade al que ya existe `pytest`, `pytest-playwright`, `opencv-python`, `rapidocr>=3` + `onnxruntime` (`rapidocr-onnxruntime` no funciona en Python 3.14), `pydantic`, `imagehash` y `jinja2`. Ya estaban `playwright`, `pillow`, `numpy`, `python-dotenv` y `anthropic`. Cada uno ejecuta `pip install -r requirements.txt` en su `.venv`. Nadie más toca `requirements.txt` hasta el primer hito.
 4. **Cada área trabaja con simulaciones de las demás** hasta las fusiones (13:00, 15:30…).
 5. **Cada Claude arranca con la misma frase**: "Soy el área X. Lee CLAUDE.md y docs/PLAN_24H.md §Arranque y trabaja solo en tus carpetas".
 
