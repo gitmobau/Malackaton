@@ -8,14 +8,39 @@ Una persona habla y otra maneja el portátil (el del runner, `portatil-alejandro
 | # | Bloque | Tiempo | Acumulado | Quién | Qué se enseña |
 |---|---|---|---|---|---|
 | 1 | El problema | 0:30 | 0:30 | Habla | El juego es un canvas de terceros sin DOM: hay que comprobarlo como un jugador. Dos escenarios: tirada completada (S1) y saldo insuficiente (S2) |
-| 2 | Ejecución real | 2:00 | 2:30 | Maneja | **15 s de contexto**: "el login es asistido por decisión del mentor (antibot de Betsson): una persona inicia sesión y el comprobador se conecta a ese Chrome; el valor está en el análisis del canvas". Después, `gh workflow run` en directo: el runner se conecta al Chrome con sesión, abre el juego de Pragmatic y gira con la apuesta mínima |
+| 2 | Ejecución real | 2:00 | 2:30 | Maneja | **15 s de contexto**, la frase del login (ver [El login, frase para el jurado](#el-login-frase-para-el-jurado)). Después, `gh workflow run` en directo: el runner se conecta al Chrome con sesión, abre el juego de Pragmatic y gira con la apuesta mínima |
 | 3 | Informe PASS/FAIL | 1:30 | 4:00 | Maneja | Informe web: PASS/FAIL por comprobación, con motivo y capturas; la regla `después = antes − apuesta + ganancia`; S2 con el mensaje en el idioma del mercado |
 | 4 | Cómo "ve como un jugador" | 1:00 | 5:00 | Habla | OCR sobre el canvas localizando los importes por su etiqueta (SALDO/APUESTA/GANANCIA), plantillas multiescala para el botón, la red y el monedero de Betsson solo **confirman**. Lo dudoso es FAIL "inconclusive", nunca PASS |
 | 5 | Extensibilidad: proveedores y mercados | 0:45 | 5:45 | Habla | Un proveedor = una carpeta en `betsson/profiles/<proveedor>/` + test de contrato; `generic-vision` de respaldo. Un mercado = un `config/markets/<mercado>.json` (Perú/PEN, Malta/EN) validado con pydantic. `PROVIDER_UI_CHANGED` si el proveedor cambia la interfaz |
 | 6 | CI y arquitectura | 0:45 | 6:30 | Habla | GitHub Actions: tests sin red en cada PR, ejecución real en un runner propio en España (geobloqueo), matriz por mercado, escáner de secretos antes de publicar evidencias |
-| 7 | Siguientes pasos | 0:30 | 7:00 | Habla | Segundo proveedor real, mercados `com` y `pe` con cuenta, deriva visual con hash perceptual, Pages público |
+| 7 | Siguientes pasos | 0:30 | 7:00 | Habla | Tres, ver [Siguientes pasos](#siguientes-pasos): calibración del reposo, vídeo en el informe y otros juegos de Pragmatic |
 
 Plan B si la ejecución en directo falla o tarda más de 2 min: pasar al **vídeo de respaldo** (bloque 2) y al informe de la última ejecución buena (bloque 3). No se depura en directo.
+
+## La validación en un solo comando
+
+Con las dos sesiones del login asistido vivas, un solo comando comprueba las sesiones, lanza el mismo `pytest -m real` que la CI y abre el informe:
+
+```powershell
+python -m betsson.site.run --market es --scenarios s1,s2 --game big-bass-splash
+# alias corto: python -m betsson.run --market es --scenarios s1,s2 --game big-bass-splash
+```
+
+Si falta alguna sesión, dice qué login repetir y no ejecuta nada. Detalles y opciones en [`docs/demo/UN-COMANDO.md`](UN-COMANDO.md). Sirve de plan B en la demo si la CI tarda: mismo código y mismo informe, sin esperar al runner.
+
+## El login, frase para el jurado
+
+Otro equipo presenta un login totalmente automático. Nuestra frase, literal y sin ponernos a la defensiva:
+
+> "El login automático lo bloquea el antifraude de Betsson: lo probamos dos veces y está documentado en `docs/PREGUNTAS.md` (18b). Por indicación del mentor lo hace una persona y todo lo demás es automático, porque el valor del reto está en validar el canvas como un jugador."
+
+Si insisten: no intentamos saltarnos el antifraude ni los captchas (lo prohíben nuestras reglas y el reto pide cuentas de prueba). El comprobador se conecta al Chrome con la sesión ya iniciada, nunca teclea credenciales, y si la sesión ha caducado el resultado es no concluyente, no un PASS.
+
+## Siguientes pasos
+
+1. **Calibración del reposo**: medir por juego cuándo la pantalla está quieta (fin de la tirada, saldo estable) en lugar de usar un umbral común, para que las tiradas largas o con animaciones de premio no salgan como no concluyentes.
+2. **Vídeo en el informe**: grabar solo la ventana del juego, ya con la sesión iniciada y sin la cabecera de Betsson, para que el vídeo no guarde datos del cliente y se pueda publicar junto a las capturas.
+3. **Otros juegos de Pragmatic**: validar más slots del mismo proveedor solo cambiando `GAME_SLUG`, sin tocar código, y guardar la huella de cada uno para detectar cambios de interfaz.
 
 ## Comandos exactos
 
