@@ -77,13 +77,14 @@ avisa al final.
 ## CI (GitHub Actions)
 
 Workflow `.github/workflows/validacion.yml` ("Validación de juegos"):
-- **Tests `unit`** (sin red): en los runners de GitHub, en cada PR y en cada push a `main`.
+- **Tests `unit`** (sin red): en los runners de GitHub, en cada PR y en cada push a `main`. El job real ejecuta además los `browser` (navegador sin red externa, p. ej. la regresión de la traza) y los `real`.
 - **Job `real`** (entra en Betsson): **solo a mano**, en Actions → *Validación de juegos* → *Run workflow*, indicando los mercados (por defecto `es`; `com` y `pe` están configurados pero desactivados por falta de cuenta). Se ejecuta en el runner propio del portátil de Alejandro, porque los runners de GitHub tienen IP de EE. UU. y Betsson los geobloquea.
 - El job real usa **Chrome del sistema** (`--browser-channel chrome`): con él no salió captcha en el reconocimiento.
 - El runner `portatil-alejandro` (`D:\DevTools\actions-runner`) lleva las etiquetas `self-hosted, windows, betsson-es` y **se arranca con `run.cmd` en una terminal, no como servicio**. Un servicio no tiene escritorio y el navegador visible (`--headed`) falla; el workflow lo comprueba.
 - **Tras un reinicio o si se cierra su ventana, el runner se cae.** Para volver a arrancarlo:
   `start "runner" /min cmd /c "D:\DevTools\actions-runner\run.cmd"`.
-  Para que arranque solo al iniciar sesión, el dueño del portátil puede añadir esa línea al final de `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\unidad-D.cmd`, después del `subst`, que crea la unidad D:. Claude no lo hace porque es una persistencia fuera del repo.
+  **Arranca solo al iniciar sesión**: la última línea de `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\unidad-D.cmd` (después del `subst`, que crea la unidad D:) lanza `run.cmd` minimizado.
+- **Login asistido** (autorizado por el mentor): antes de lanzar el job real, una persona inicia sesión en Chrome (perfiles `es-main` y `es-empty` en `D:\MAIKI\Malackathon\.chrome-profiles`, puertos CDP 9222 y 9223) y el comprobador se conecta por CDP. El workflow comprueba que los puertos responden y, si no, falla con "repetir login asistido". Los puertos se cambian con la variable del repo `CDP_PORTS`. El runner corre con el mismo usuario de Windows que ese Chrome.
 - **Lanzar la validación (demo)**, con `gh` y la sesión iniciada:
   ```bash
   gh workflow run "Validación de juegos" -R gitmobau/Malackaton --ref main -f markets=es
@@ -92,7 +93,10 @@ Workflow `.github/workflows/validacion.yml` ("Validación de juegos"):
   ```
   Abre Chrome en el portátil del runner y gasta saldo: avisar al equipo antes.
 - Secretos en *Settings → Secrets → Actions*: `BETSSON_<MERCADO>_USERNAME` y `BETSSON_<MERCADO>_PASSWORD` (y `..._EMPTY_...` para el escenario 2). Mismos nombres que en `.env.example`.
-- Antes de publicar el artifact, `.github/scripts/scan_secrets.py` busca las credenciales en `outputs/`. Si encuentra alguna, no se publica nada. Las trazas y los vídeos quedan fuera del artifact hasta que el login esté tapado.
+- Antes de publicar el artifact, `.github/scripts/scan_secrets.py` busca las credenciales en `outputs/`. Si encuentra alguna, no se publica nada. Las trazas y los vídeos **nunca** se publican: aunque el login quede fuera de la traza, la red con sesión lleva las cookies de Betsson, que el escáner no reconoce. Se quedan en el runner para depurar.
+- **Informe web**: tras una ejecución a mano, el job `pages` genera `index.html` con el resumen PASS/FAIL y los enlaces a `report.html` y `results.json` de cada mercado (`.github/scripts/build_pages.py`). Solo usa evidencias que ya pasaron el escáner de secretos y nunca publica trazas ni vídeos. Siempre se sube como artifact `informe-web-<runId>-<intento>`.
+- **GitHub Pages**: el plan de la cuenta no lo permite en un repo privado (HTTP 422). Si el repo pasa a público o la cuenta a Pro: *Settings → Pages → Source: GitHub Actions* y variable del repo `PAGES_ENABLED=true`. Ojo: la web de Pages es pública.
+- **Probar el despliegue sin gastar saldo**: `gh workflow run "Validación de juegos" -R gitmobau/Malackaton -f markets=ninguno` (ningún mercado activo: no abre Chrome).
 - `.github/CODEOWNERS`: el equipo usa una única cuenta compartida (`gitmobau`), así que todo es suyo. El reparto por áreas queda documentado en comentarios.
 
 ## Sesiones en la nube
