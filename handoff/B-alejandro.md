@@ -1,5 +1,16 @@
 # Traspaso del área B (Alejandro): ojos sobre el juego y proveedores
 
+## Estado actualizado (15-oct, tarde, portátil de Alejandro). Manda sobre el resto del documento
+- Fusionado `main` con los contratos de C (`betsson/core`). Se borraron las copias provisionales: B importa todo de `core`.
+- `ProfileSpec` (en `profiles/base.py`) cumple `core.ProviderProfile`. `profiles/registry.py` tiene `Registry`/`REGISTRY`, que cumple `core.ProviderRegistry`: `resolve()` nunca lanza (proveedor desconocido → `generic-vision`) y `ensure_recognized()` lanza `ProviderUIChanged`. GameEyes ya no lo hace.
+- `game/factory.py`: `make_game_eyes(handle, profile, market)` cumple `core.GameEyesFactory` y usa el `GameHandle` de A (`capture()` RGB y `canvas`).
+- `game/money_reader.py`: **único** punto que usa `parse_money` y `detect_currency` de A. Si `betsson.market` no está, todo sale inconclusive y se registra un aviso.
+- Nuevo `set_bet("min" | "above_balance")` con plantillas −/+ (comprueba que la apuesta se mueve en el sentido pedido). `read_win()` devuelve 0 si el perfil declara `win_hidden_when_zero` y no se ve ninguna etiqueta de ganancia.
+- **S1 completo probado en vivo en la demo**: apuesta mínima 0,10 €; 100.000,00 − 0,10 + 0 = 99.999,90, leído en pantalla.
+- Revisión de `python-reviewer`: 5 HIGH corregidos y varios MEDIUM. Pendientes: esperas sin ritmo en los bucles de captura (solo las limita el coste de la captura), `resolve()` si un perfil no carga, y desplazar el canvas a la vista antes de pulsar.
+- Pendiente de lo de siempre: S2 con la cuenta sin saldo (texto real de saldo insuficiente) y prueba en Real Play dentro de betsson.es.
+- Tests: `pytest betsson` da 57 en verde y 1 omitido; la suite completa del repo, sin `real`, también en verde.
+
 Rama `feat/B-vision`. Punto de traspaso del 15-oct, hacia las 13:00, al migrar del portátil de Maiki al de Alejandro.
 **No está fusionado con `main`.** La rama sale de `7ce859c`, anterior al PR #1. Ver "Siguientes pasos", punto 1.
 
