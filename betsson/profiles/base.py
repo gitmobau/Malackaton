@@ -15,6 +15,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from betsson.core import GameField, IntroScreen, Rect, SpinEndSignal
 
 AMOUNT_FIELDS: tuple[GameField, ...] = ("balance", "bet", "win")
+_DETECT_MIN_SCORE = 0.8  # coincidencia exigida a una plantilla para reconocer el proveedor por la imagen
+_DETECT_BY_IMAGE = 0.8  # confianza de esa detección (la URL conocida da 1.0)
 
 
 class IntroStep(IntroScreen):
@@ -62,6 +64,9 @@ class ProfileSpec(BaseModel):
     network_pattern: str | None = None  # regex de la petición de tirada; solo confirma
     # --- propio de B ---
     url_patterns: list[str] = []  # regex sobre la URL del iframe del juego
+    # Plantillas que solo tiene este proveedor (p. ej. su botón de girar): reconocen el juego por la
+    # imagen cuando la URL no es la conocida (otro casino, proxy o cambio de dominio).
+    detect_templates: list[Path] = []
     spin_key: str | None = None  # tecla alternativa para girar
     bet_down: Control | None = None
     bet_up: Control | None = None
@@ -99,4 +104,9 @@ class ProfileSpec(BaseModel):
         """Confianza 0..1 de que este perfil corresponde al juego abierto."""
         if any(re.search(p, iframe_url or "", re.IGNORECASE) for p in self.url_patterns):
             return 1.0
+        if frame is not None and self.detect_templates:
+            from betsson.vision.template import find_template  # import tardío: base no carga OpenCV si no hace falta
+
+            if find_template(frame, self.detect_templates, min_score=_DETECT_MIN_SCORE) is not None:
+                return _DETECT_BY_IMAGE
         return 0.0

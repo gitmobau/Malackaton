@@ -53,6 +53,11 @@ class TestAnclas:
         same_row = [box("CRÉDITO", 0, 700, 90, 720), box("APUESTA", 300, 700, 390, 720), box("2,00 €", 400, 700, 450, 720)]
         assert find_amount(same_row, ["CRÉDITO"]) is None
 
+    def test_inline_con_otro_importe_pegado_es_ambiguo(self) -> None:
+        """Caso real en betsson.es: el OCR leyó 'CRÉDITO 1' y a su derecha '100,00 €'. Nunca se toma el '1'."""
+        boxes = [box("CRÉDITO 1", 188, 575, 262, 592, 0.97), box("100,00 €", 263, 576, 330, 593, 1.0)]
+        assert find_amount(boxes, ["CRÉDITO"]) is None
+
     def test_inline_solo_si_lo_que_sigue_es_un_importe(self) -> None:
         assert find_amount([box("WIN UP TO 5.000 €", 0, 0, 200, 20)], ["WIN"]) is None
         assert find_amount([box("BET MAX 100", 0, 0, 200, 20)], ["BET"]) is None
