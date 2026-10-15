@@ -352,3 +352,14 @@ def test_real_test_never_records_network_trace_har_or_video() -> None:
     code = "\n".join(line for line in source.splitlines() if not line.lstrip().startswith(("#", "-", "*")))
     for banned in ("tracing.start", "start_chunk", "record_har", "record_video", "ChunkedTrace("):
         assert banned not in code, f"{banned} en test_real.py"
+
+
+def test_index_cover_has_matrix_tiles_and_flags(tmp_path: Path) -> None:
+    run_s1(tmp_path / "es" / "S1", site_kw={"login_assisted": True})
+    run_s2(tmp_path / "es" / "S2", message=Message(reason="OCR sin texto"))
+    html = render_index(tmp_path).read_text(encoding="utf-8")
+    assert "Comprobaciones por escenario" in html
+    assert "betsson_balance_reconciles" in html and "insufficient_message_language" in html
+    assert "Login asistido por una persona" in html
+    assert "PASS: 1" in html and "INCONCLUSIVE: 1" in html
+    assert 'class="strip"' in html and "S1/game_bet.png" in html

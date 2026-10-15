@@ -1,35 +1,63 @@
 {% extends "_base.html.j2" %}
-{% block title %}Run {{ run_id }}{% endblock %}
+{% block title %}Validación de juegos · run {{ run_id }}{% endblock %}
 {% block body %}
-<h1>Validación de juegos · run {{ run_id }}</h1>
-<div class="meta">{{ entries|length }} escenarios. Pulsa en cada uno para ver sus comprobaciones y evidencias.</div>
+<h1>Validación de juegos como un jugador</h1>
+<div class="meta">Run {{ run_id }} · {{ entries|length }} escenarios · lo dudoso cuenta como FAIL no concluyente, nunca como PASS</div>
 
 {% if not entries %}
 <p>No hay resultados en este run.</p>
 {% else %}
-<h2>Escenarios por mercado</h2>
-<div class="wrap">
-<table>
-  <thead><tr><th>Mercado</th><th>Escenario</th><th>Resultado</th><th>PASS</th><th>Perfil</th><th>Juego</th><th>Detalle</th></tr></thead>
-  <tbody>
-  {% for e in entries %}
-    {% if e.error %}
-    <tr><td colspan="6"><span class="badge FAIL">ERROR</span> {{ e.link }}: {{ e.error }}</td><td></td></tr>
-    {% else %}
-    {% set run = e.run %}
-    <tr>
-      <td>{{ run.market }}</td>
-      <td>{{ run.scenario.value }}</td>
-      <td><span class="badge {{ run.outcome }}">{{ run.outcome }}</span></td>
-      <td>{{ run.results|selectattr("status", "equalto", "PASS")|list|length }} / {{ run.results|length }}</td>
-      <td>{{ run.provider or "—" }}</td>
-      <td>{{ run.game or "—" }}</td>
-      <td><a href="{{ e.link|urlencode }}">informe</a></td>
-    </tr>
+<div class="summary">
+  {% for outcome, n in outcomes|dictsort %}<span class="badge {{ outcome }}">{{ outcome }}: {{ n }}</span>{% endfor %}
+</div>
+
+<div class="tiles">
+{% for e in entries %}
+  {% if e.error %}
+  <div class="tile"><span class="badge FAIL">ERROR</span><div class="meta">{{ e.link }}: {{ e.error }}</div></div>
+  {% else %}
+  {% set run = e.run %}
+  <a class="tile {{ run.outcome }}" href="{{ e.link|urlencode }}">
+    <div class="tile-head"><strong>{{ run.scenario.value }}</strong> · mercado {{ run.market }}</div>
+    <span class="badge {{ run.outcome }}">{{ run.outcome }}</span>
+    <div class="meta">{{ run.results|selectattr("status", "equalto", "PASS")|list|length }} de {{ run.results|length }} en PASS
+      · perfil {{ run.provider or "—" }} · juego {{ run.game or "—" }}</div>
+    {% for w in run.warnings %}
+      {% if "login asistido" in w %}<div class="flag info">Login asistido por una persona</div>
+      {% elif "ha cambiado desde la última ejecución" in w %}<div class="flag ui">El juego del proveedor ha cambiado</div>
+      {% elif "PROVIDER_UI_CHANGED" in w %}<div class="flag ui">PROVIDER_UI_CHANGED</div>{% endif %}
+    {% endfor %}
+    {% if run.error %}<div class="flag err">Ejecución cortada</div>{% endif %}
+    {% set shots = run.readings|selectattr("evidence")|list %}
+    {% if shots %}
+    <div class="strip">
+      {% for r in shots[:4] %}<img src="{{ (e.link.rsplit("/", 1)[0] ~ "/" ~ (r.evidence|posix))|urlencode }}" alt="{{ r.name }}" title="{{ r.name }}: {{ r.value or "dudoso" }}">{% endfor %}
+    </div>
     {% endif %}
+  </a>
+  {% endif %}
+{% endfor %}
+</div>
+
+{% if rows %}
+<h2>Comprobaciones por escenario</h2>
+<div class="wrap">
+<table class="matrix">
+  <thead><tr><th>Comprobación</th>{% for e in columns %}<th>{{ e.run.scenario.value }} · {{ e.run.market }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for row in rows %}
+    <tr>
+      <td><code>{{ row.check }}</code></td>
+      {% for cell in row.cells %}
+      <td>{% if cell %}<span class="badge {{ cell.label }}" title="{{ cell.reason }}">{{ cell.label }}</span>{% else %}<span class="meta">—</span>{% endif %}</td>
+      {% endfor %}
+    </tr>
   {% endfor %}
   </tbody>
 </table>
 </div>
+<p class="meta">Pasa el ratón por cada resultado para ver el motivo. INCONCLUSIVE = no se pudo verificar con seguridad.
+PROVIDER_UI_CHANGED = el juego del proveedor ya no lo reconoce su perfil (aviso de mantenimiento, no fallo de Betsson).</p>
+{% endif %}
 {% endif %}
 {% endblock %}
