@@ -19,7 +19,7 @@ from betsson.profiles.pragmatic.tests.test_fixtures import FIXTURES, EurEsReader
 from betsson.profiles.registry import ensure_recognized, get_profile
 from betsson.vision.template import find_template
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.slow]  # ~3,5 min de OCR
 
 Mutation = Callable[[np.ndarray], np.ndarray]
 
