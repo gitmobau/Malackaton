@@ -31,7 +31,7 @@ _UPSCALES: tuple[float, ...] = (1.0, 2.0)
 _MAX_INTRO_STEPS = 6
 _LOADING_TIMEOUT_S = 60.0
 _REREAD_UPSCALE = 3.0
-_MESSAGE_CHECK_FRAMES = 3  # frames tras pulsar girar en los que se busca un mensaje (entra con fundido)
+_MESSAGE_CHECK_FRAMES = 2  # frames tras pulsar girar en los que se busca un mensaje (real: ya se lee en el 1.º)
 _TRUSTED_SCORE = 0.95  # por debajo de esta confianza del OCR, el importe se relee recortado
 _MAX_BET_STEPS = 30  # pulsaciones máximas de +/- para llegar a la apuesta mínima o máxima
 _DEFAULT_EVIDENCE_DIR = Path("outputs") / "evidence" / "game"
@@ -319,9 +319,10 @@ class GameEyes:
         start = time.monotonic()
         while time.monotonic() - start < _LOADING_TIMEOUT_S and len(dismissed) < _MAX_INTRO_STEPS:
             frame = self._source.grab()
-            if self._find("balance", frame) is not None:
-                return dismissed  # juego listo
-            boxes = read_text(frame)
+            boxes = read_text(frame)  # un solo OCR por vuelta: sirve para el saldo y para la intro
+            # Juego listo = se ve la ETIQUETA del saldo (el importe se lee después, con relecturas).
+            if find_label(boxes, self.profile.label_aliases("balance", self._lang)) is not None:
+                return dismissed
             text = normalize(full_text(boxes))
             screen = next(
                 (s for s in self.profile.intro_screens if any(normalize(t) in text for t in s.match_texts)),
@@ -441,7 +442,16 @@ class GameEyes:
         return False
 
     def _amount_texts(self, frame: np.ndarray) -> tuple[str | None, ...]:
-        return tuple(a.value_text if (a := self._find(f, frame)) else None for f in ("balance", "win"))
+        """Saldo y ganancia en bruto para ver si siguen cambiando: un solo OCR (es una espera, no la prueba)."""
+        boxes = read_text(frame)
+        return tuple(a.value_text if (a := self._quick_find(f, boxes, frame)) else None for f in ("balance", "win"))
+
+    def _quick_find(self, field: GameField, boxes: list[TextBox], frame: np.ndarray) -> AnchoredValue | None:
+        """Como _find, pero sobre cajas ya leídas y sin relecturas (para los bucles de espera)."""
+        hint_rect = self.profile.hint_zones.get(field)
+        height, width = frame.shape[:2]
+        hint = to_pixels(hint_rect, width, height) if hint_rect else None
+        return find_amount(boxes, self.profile.label_aliases(field, self._lang), hint)
 
     # ---------- mensajes ----------
 
