@@ -23,7 +23,7 @@ from playwright.sync_api import Browser, ElementHandle, Frame, Locator, Page, Pl
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from betsson.core import GameOpenError, PlayMode, Reading
+from betsson.core import GameOpenError, Notice, PlayMode, Reading
 from betsson.market.money import MoneyParseError, detect_currency, parse_money
 from betsson.market.schema import Market
 from betsson.site import selectors as sel
@@ -105,7 +105,7 @@ class GameHandle:
     play_mode: PlayMode
     play_mode_reason: str = ""
     evidence: tuple[Path, ...] = field(default_factory=tuple)
-    notices: tuple[str, ...] = ()  # avisos visibles de Betsson al lanzar (p. ej. "No dispones de saldo…")
+    notices: tuple[Notice, ...] = ()  # avisos visibles de Betsson al lanzar (p. ej. "No dispones de saldo…")
 
     def capture(self) -> np.ndarray:
         """Captura actual del canvas del juego, en RGB."""
@@ -140,7 +140,7 @@ class BetssonSite:
         self.login_note: str | None = None  # motivo legible de login_ok para el informe
         self.evidence_dir = evidence_dir or Path("outputs") / "site" / market.id
         self.last_login_error: str | None = None
-        self.launch_notices: list[str] = []  # avisos visibles de Betsson al lanzar el juego (evidencia para S2)
+        self.launch_notices: list[Notice] = []  # avisos visibles de Betsson al lanzar el juego (con su captura)
         self._trace = trace or NoTrace()
         self._pacer = pacer or Pacer()
         self._games: dict[str, GameInfo] = {}
@@ -549,6 +549,7 @@ class BetssonSite:
 
     def open_game(self, slug: str, query: str | None = None) -> GameHandle:
         """Abre el juego en Real Play y devuelve su iframe y su canvas. Lanza GameOpenError si no se puede."""
+        self.launch_notices = []
         path = self._game_paths.get(slug)
         if path is None:
             href = self.find_game(slug, query).get_attribute("href") or ""
@@ -634,8 +635,9 @@ class BetssonSite:
         if not dialog.count():
             return False
         dialog = dialog.last  # el más interno si los contenedores van anidados
-        evidence.append(self.screenshot("session_limits_dialog"))
-        self._read_dialog_notices(dialog)
+        shot = self.screenshot("session_limits_dialog")
+        evidence.append(shot)
+        self._read_dialog_notices(dialog, shot)
         for pattern, required in ((cfg.time_option_pattern, True), (cfg.loss_option_pattern, False)):
             option = dialog.get_by_role("button", name=re.compile(pattern, re.I)).filter(visible=True)
             if option.count():
@@ -673,28 +675,33 @@ class BetssonSite:
             if not dialog.count():
                 continue
             dialog = dialog.last
-            evidence.append(self.screenshot("pre_session_notice"))
+            shot = self.screenshot("pre_session_notice")
+            evidence.append(shot)
             try:
-                text = " ".join(dialog.inner_text().split())[:300]
-                if text not in self.launch_notices:
-                    self.launch_notices.append(text)
+                self._add_notice(" ".join(dialog.inner_text().split())[:300], shot)
             except PlaywrightError:
-                pass
+                log.warning("no se pudo leer el texto del aviso previo")
             log.info("aviso previo de Betsson aceptado: %s", pattern)
             dialog.get_by_role("button", name=submit_re).filter(visible=True).first.click()
             dialog.wait_for(state="hidden", timeout=DEFAULT_TIMEOUT_MS)
             return True
         return False
 
-    def _read_dialog_notices(self, dialog: Locator) -> None:
-        """Guarda los avisos visibles del diálogo (p. ej. "No dispones de saldo…"): son lo que ve el jugador."""
+    def _add_notice(self, text: str, evidence_path: Path | None) -> None:
+        text = " ".join(text.split())
+        if text and all(n.text != text for n in self.launch_notices):
+            self.launch_notices.append(Notice(text=text, evidence_path=evidence_path))
+            log.info("aviso de Betsson en el lanzamiento: %s", text)
+
+    def _read_dialog_notices(self, dialog: Locator, evidence_path: Path | None) -> None:
+        """Avisos visibles del diálogo (p. ej. "No dispones de saldo…"): lo que ve el jugador.
+
+        Se reconocen por los textos de saldo insuficiente del mercado (config), no por clases CSS.
+        """
+        phrases = "|".join(re.escape(t) for t in self.market.expected_texts.insufficient_funds)
         try:
-            texts = dialog.locator("[role='alert'], [class*='warning' i], [class*='notice' i], [class*='info' i]")
-            for text in texts.filter(visible=True).all_inner_texts():
-                text = " ".join(text.split())
-                if text and text not in self.launch_notices:
-                    self.launch_notices.append(text)
-                    log.info("aviso de Betsson en el lanzamiento: %s", text)
+            for text in dialog.get_by_text(re.compile(phrases, re.I)).filter(visible=True).all_inner_texts():
+                self._add_notice(text, evidence_path)
         except PlaywrightError:
             log.warning("no se pudieron leer los avisos del diálogo de límites")
 
