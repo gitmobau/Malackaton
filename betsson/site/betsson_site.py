@@ -12,6 +12,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from playwright.sync_api import ElementHandle, Frame, Locator, Page, Response
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from betsson.market.money import Money, MoneyParseError, detect_currency, parse_money
@@ -145,18 +146,29 @@ class BetssonSite:
         self._mask(username)
         self._mask(password)
 
+        # La traza solo se reanuda con el formulario fuera del DOM o con los campos vacíos, falle lo que falle.
         with trace_paused(self._trace):
-            username.fill(creds.username)
-            password.fill(creds.password)
-            self.page.locator(sel.LOGIN_SUBMIT).click()
-            # Seguimos en pausa hasta que el formulario desaparece: sus valores van en las instantáneas del DOM.
             try:
+                username.fill(creds.username)
+                password.fill(creds.password)
+                self.page.locator(sel.LOGIN_SUBMIT).click()
                 password.wait_for(state="detached", timeout=DEFAULT_TIMEOUT_MS)
-            except PlaywrightTimeoutError as exc:
-                password.fill("")
-                username.fill("")
-                raise LoginError(f"login rechazado o sin respuesta en {self.market.id}: {self._visible_error()}") from exc
+            except PlaywrightError as exc:
+                error = self._visible_error().replace(creds.username, "<usuario>")
+                raise LoginError(f"login rechazado o sin respuesta en {self.market.id}: {error}") from exc
+            finally:
+                self._clear_fields(username, password)
         log.info("sesión iniciada en %s", self.market.id)
+
+    @staticmethod
+    def _clear_fields(*fields: Locator) -> None:
+        """Vacía los campos que sigan en la página. Si ya no están (login correcto), no hay nada que vaciar."""
+        for field in fields:
+            try:
+                if field.count():
+                    field.fill("", timeout=2_000)
+            except PlaywrightError:
+                log.warning("no se pudo vaciar un campo del login; la traza sigue en pausa hasta aquí")
 
     def _mask(self, field: Locator) -> None:
         """Tapa el campo en capturas y vídeo (se aplica antes de escribir)."""
