@@ -29,9 +29,11 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          # La misma versión que el runner, con la que se generó el lock.
+          python-version: "3.14"
           cache: pip
-      - run: pip install -r requirements.txt
+          cache-dependency-path: requirements-betsson.lock
+      - run: pip install -r requirements-betsson.txt -c requirements-betsson.lock
       # En los PR se saltan los lentos (marca slow) para tener respuesta rápida; en main y a mano, todos.
       - run: pytest -m "${{ github.event_name == 'pull_request' && 'unit and not slow' || 'unit' }}"
 
