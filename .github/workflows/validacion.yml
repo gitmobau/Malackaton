@@ -102,7 +102,7 @@ jobs:
           foreach ($k in 'USERNAME','PASSWORD','EMPTY_USERNAME','EMPTY_PASSWORD') {
             [Environment]::SetEnvironmentVariable("BETSSON_${m}_$k", [Environment]::GetEnvironmentVariable("BETSSON_$k"))
           }
-          & $env:VENV_PY -m pytest -m "unit or real" --market $env:MARKET --headed
+          & $env:VENV_PY -m pytest -m "unit or real" --market $env:MARKET --headed --browser-channel chrome
           exit $LASTEXITCODE
 
       - name: Buscar secretos en las evidencias
