@@ -9,9 +9,13 @@ Solo en el runner propio en España: `pytest -m real --market es --headed`.
   - "session" (por defecto si el mercado tiene site.browser_session): login asistido por
     una persona, autorizado por los mentores. El comprobador se conecta por CDP al Chrome
     con la sesión iniciada a mano (un puerto por cuenta), abre su propia pestaña y al
-    terminar la cierra; nunca cierra el navegador ni hace logout. Sin traza: no se graba
-    la sesión de la persona. Sin Chrome escuchando o con la sesión caducada → skip con motivo.
-  - "auto": login automatizado con la traza por trozos de A, pausada durante el login.
+    terminar la cierra; nunca cierra el navegador ni hace logout. Sin Chrome escuchando o
+    con la sesión caducada → skip con motivo.
+  - "auto": login automatizado.
+- NUNCA traza de red, HAR ni vídeo de Playwright: con la sesión iniciada la web descarga el
+  perfil completo del cliente (datos personales). Las evidencias son capturas de pantalla.
+  El contexto se crea aquí, no con los fixtures `context`/`page` de pytest-playwright, para
+  que no les afecte --tracing/--video de pytest.ini.
 - Deja results.json y report.html en outputs/runs/<runId>/<market>/<S1|S2>/ y el índice
   del run en outputs/runs/<runId>/report.html.
 - Compara cada juego con su huella de la última ejecución buena (outputs/baselines/ o
@@ -94,12 +98,12 @@ class _Player:
             self._close.append(site.page.close)  # solo nuestra pestaña: nunca browser.close() ni logout
             return site
         browser = self.request.getfixturevalue("browser")
+        # Sin traza de red ni HAR ni vídeo: con la sesión iniciada la web descarga el perfil
+        # completo del cliente (datos personales). Las evidencias son capturas de pantalla.
         context = browser.new_context(viewport=VIEWPORT, device_scale_factor=1, locale=self.market.locale,
                                       timezone_id=self.market.timezone)
-        context.tracing.start(screenshots=True, snapshots=True)
-        trace = site_mod.ChunkedTrace(context, out)
-        self._close.append(lambda: (context.tracing.stop(path=out / "trace-final.zip"), context.close()))
-        return site_mod.BetssonSite(context.new_page(), self.market, account=account, evidence_dir=out, trace=trace)
+        self._close.append(context.close)
+        return site_mod.BetssonSite(context.new_page(), self.market, account=account, evidence_dir=out)
 
     def close(self) -> None:
         for fn in reversed(self._close):

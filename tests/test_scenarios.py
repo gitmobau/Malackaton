@@ -344,3 +344,11 @@ def test_s2_report_includes_message_reading(tmp_path: Path) -> None:
     run = run_s2(tmp_path)
     msg = next(r for r in run.readings if r.name == "Mensaje en el juego")
     assert msg.raw_text == "Saldo insuficiente" and msg.value == "idioma es"
+
+
+def test_real_test_never_records_network_trace_har_or_video() -> None:
+    """Con la sesión iniciada la web descarga el perfil completo del cliente (datos personales)."""
+    source = (ROOT / "tests" / "test_real.py").read_text(encoding="utf-8")
+    code = "\n".join(line for line in source.splitlines() if not line.lstrip().startswith(("#", "-", "*")))
+    for banned in ("tracing.start", "start_chunk", "record_har", "record_video", "ChunkedTrace("):
+        assert banned not in code, f"{banned} en test_real.py"
