@@ -422,3 +422,10 @@ def test_betsson_notices_appear_in_readings(tmp_path: Path) -> None:
     run = run_s1(tmp_path, site_kw={"handle": handle})
     notice = next(r for r in run.readings if r.name == "Aviso de Betsson")
     assert notice.raw_text == "No dispones de saldo…" and notice.evidence == Path("dgoj_no_balance.png")
+
+
+def test_plain_text_notices_are_accepted(tmp_path: Path) -> None:
+    handle = FakeGameHandle(notices=("No dispones de saldo, pero puedes crear la sesión…",))
+    run = run_s1(tmp_path, site_kw={"handle": handle})
+    notice = next(r for r in run.readings if r.name == "Aviso de Betsson")
+    assert notice.raw_text.startswith("No dispones de saldo") and notice.evidence is None
