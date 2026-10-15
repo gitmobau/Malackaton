@@ -327,3 +327,20 @@ def test_assisted_without_session_is_inconclusive_not_failure(tmp_path: Path) ->
     r = by_id(run)[CheckId.LOGIN_OK]
     assert r.failure_kind is FailureKind.INCONCLUSIVE and "caducada o ausente" in r.reason
     assert run.outcome == "INCONCLUSIVE"
+
+
+def test_report_shows_what_the_checker_saw(tmp_path: Path) -> None:
+    run = run_s1(tmp_path, win=None)
+    names = [r.name for r in run.readings]
+    assert names[:3] == ["Saldo de Betsson antes", "Apuesta", "Saldo del juego antes"]
+    win = next(r for r in run.readings if r.name == "Ganancia")
+    assert win.value is None and "inconclusive" in (win.reason or "")
+    assert all(r.evidence is None or not r.evidence.is_absolute() for r in run.readings)
+    html = (tmp_path / "report.html").read_text(encoding="utf-8")
+    assert "Lo que vio el comprobador" in html and "confianza 98 %" in html and "dudoso" in html
+
+
+def test_s2_report_includes_message_reading(tmp_path: Path) -> None:
+    run = run_s2(tmp_path)
+    msg = next(r for r in run.readings if r.name == "Mensaje en el juego")
+    assert msg.raw_text == "Saldo insuficiente" and msg.value == "idioma es"

@@ -28,10 +28,12 @@ from betsson.core import (
     GameEyesFactory,
     GameOpenError,
     MarketContext,
+    Message,
     ProviderRegistry,
     ProviderUIChanged,
     RunResult,
     Scenario,
+    ScreenReading,
 )
 from betsson.report.fingerprint import BaselineStore, check_drift, take
 from betsson.report.html import render_run
@@ -126,6 +128,37 @@ def _evaluate(scenario: Scenario, obs: dict[str, Any], market: MarketContext) ->
     return evaluate_s2(S2Observation(**obs), market)
 
 
+# Lecturas que se enseñan en el informe, en el orden del jugador: (clave en obs, nombre, origen).
+_READINGS = (
+    ("betsson_before", "Saldo de Betsson antes", "betsson"),
+    ("bet", "Apuesta", "juego"),
+    ("game_before", "Saldo del juego antes", "juego"),
+    ("win", "Ganancia", "juego"),
+    ("game_after", "Saldo del juego después", "juego"),
+    ("bet_after", "Apuesta tras la tirada", "juego"),
+    ("message", "Mensaje en el juego", "juego"),
+    ("betsson_after", "Saldo de Betsson después", "betsson"),
+)
+
+
+def _screen_readings(obs: dict[str, Any]) -> tuple[ScreenReading, ...]:
+    out = []
+    for key, name, source in _READINGS:
+        item = obs.get(key)
+        if item is None:
+            continue
+        if isinstance(item, Message):
+            out.append(ScreenReading(name=name, source=source, raw_text=item.text, confidence=item.confidence,
+                                     value=item.lang_detected and f"idioma {item.lang_detected}",
+                                     reason=item.reason, evidence=item.evidence_path))
+        else:
+            out.append(ScreenReading(name=name, source=source, raw_text=item.raw_text,
+                                     value=str(item.money) if item.money else None, confidence=item.confidence,
+                                     currency_seen=item.currency_seen, reason=item.reason,
+                                     evidence=item.evidence_path))
+    return tuple(out)
+
+
 def _relative(path: Path, base: Path, warnings: list[str]) -> Path | None:
     """Ruta relativa a la carpeta del run. Si queda fuera, se descarta con aviso (nunca rutas locales)."""
     absolute = path if path.is_absolute() else Path.cwd() / path
@@ -144,7 +177,12 @@ def _with_relative_evidence(run: RunResult, base: Path) -> RunResult:
     warnings = list(run.warnings)
     results = tuple(r.model_copy(update={"evidence": _relative_all(r.evidence, base, warnings)}) for r in run.results)
     evidence = _relative_all(run.evidence, base, warnings)
-    return run.model_copy(update={"results": results, "evidence": evidence, "warnings": tuple(dict.fromkeys(warnings))})
+    readings = tuple(
+        r.model_copy(update={"evidence": _relative(r.evidence, base, warnings) if r.evidence else None})
+        for r in run.readings
+    )
+    return run.model_copy(update={"results": results, "evidence": evidence, "readings": readings,
+                                  "warnings": tuple(dict.fromkeys(warnings))})
 
 
 def _with_drift(run: RunResult, baselines: BaselineStore, extra: dict[str, Any], out_dir: Path) -> RunResult:
@@ -210,7 +248,7 @@ def run_scenario(
     run = RunResult(
         run_id=run_id, market=market.id, scenario=scenario, provider=extra["provider"], game=slug,
         started_at=started, finished_at=datetime.now(timezone.utc), results=results,
-        warnings=tuple(warnings), error=error, evidence=extra["evidence"],
+        warnings=tuple(warnings), error=error, evidence=extra["evidence"], readings=_screen_readings(obs),
     )
     if baselines is not None and extra["frame"] is not None:
         run = _with_drift(run, baselines, extra, out_dir)

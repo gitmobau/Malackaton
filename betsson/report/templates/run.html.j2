@@ -22,6 +22,27 @@
 <div class="notice"><strong>Aviso:</strong> {{ w }}{% if "PROVIDER_UI_CHANGED" in w %} — el juego del proveedor ha cambiado; hay que revisar su perfil. No es un fallo de integración de Betsson.{% elif "ha cambiado desde la última ejecución" in w %} — no cambia el veredicto; capturas de antes y ahora en «Evidencias generales».{% endif %}</div>
 {% endfor %}
 
+{% if run.readings %}
+<h2>Lo que vio el comprobador</h2>
+<p class="meta">Cada importe se lee de la pantalla como lo vería un jugador (OCR sobre el canvas o el saldo de la web). La red y el monedero solo confirman.</p>
+<div class="readings">
+  {% for r in run.readings %}
+  <div class="card{% if not r.value %} doubt{% endif %}">
+    <div class="src">{{ r.source }}</div>
+    <div class="name">{{ r.name }}</div>
+    {% if r.evidence %}<a href="{{ r.evidence|posix|urlencode }}"><img src="{{ r.evidence|posix|urlencode }}" alt="{{ r.name }}"></a>{% endif %}
+    <div class="val">{{ r.value or "dudoso" }}</div>
+    <div class="ocr">OCR: «{{ r.raw_text or "—" }}»</div>
+    <div class="meta">
+      {% if r.confidence is not none %}confianza {{ "%.0f"|format(r.confidence * 100) }} %{% endif %}
+      {% if r.currency_seen is not none %} · moneda {{ "vista" if r.currency_seen else "no vista" }}{% endif %}
+    </div>
+    {% if r.reason %}<div class="meta">{{ r.reason }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <h2>Comprobaciones</h2>
 <div class="wrap">
 <table>
