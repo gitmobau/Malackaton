@@ -238,7 +238,8 @@ def _collect(scenario: Scenario, site: BetssonSite, registry: ProviderRegistry, 
         {"min_bet": market.min_bet, "_tolerance": market.money_tolerance} if scenario is Scenario.S1 else {}
     )
     extra: dict[str, Any] = {"notices": (), "provider": None, "error": None, "evidence": (), "frame": None, "iframe_url": None,
-                             "handle": None}
+                             "handle": None, "eye_notes": ()}
+    eyes: GameEyes | None = None
     try:
         eyes = _prepare(site, registry, eyes_factory, market, slug, obs, extra)
         if eyes is not None:
@@ -250,6 +251,9 @@ def _collect(scenario: Scenario, site: BetssonSite, registry: ProviderRegistry, 
     except Exception as exc:  # el run se corta, pero deja results.json con el motivo
         log.exception("run_scenario %s/%s se cortó", market.id, scenario.value)
         extra["error"] = safe_error(exc)
+    finally:
+        # Notas de los ojos (p. ej. "inconclusive: la intro no se cerró en 60 s"): al informe como avisos.
+        extra["eye_notes"] = tuple(safe_error(str(n)) for n in (getattr(eyes, "notes", ()) or ()))
     return obs, extra
 
 
@@ -274,6 +278,7 @@ def run_scenario(
     warnings = [f"PROVIDER_UI_CHANGED: {obs['ui_changed']}"] if obs.get("ui_changed") else []
     if obs.get("login_assisted"):
         warnings.insert(0, LOGIN_ASSISTED_WARNING)
+    warnings += [f"ojos del juego: {n}" for n in extra["eye_notes"]]
     error = extra["error"]
     try:
         results = tuple(_evaluate(scenario, obs, market))

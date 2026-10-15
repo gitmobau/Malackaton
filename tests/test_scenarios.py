@@ -474,3 +474,13 @@ def test_notice_is_not_shown_as_doubtful(tmp_path: Path) -> None:
     run = run_s1(tmp_path, site_kw={"handle": handle})
     notice = next(r for r in run.readings if r.name == "Aviso de Betsson")
     assert notice.value == "aviso visible"
+
+
+def test_eye_notes_reach_the_report(tmp_path: Path) -> None:
+    registry = FakeRegistry()
+    eyes = FakeGameEyes(registry.profile, tmp_path, [reading("100.00"), reading("99.90")], reading("0.10"))
+    eyes.notes = ["inconclusive: la presentación no se cerró en 60 s"]  # type: ignore[attr-defined]
+    site = FakeBetssonSite([reading("100.00"), reading("99.90")], tmp_path)
+    run = run_scenario(market=FakeMarket(), scenario=Scenario.S1, site=site, registry=registry,
+                       eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="r")
+    assert any("presentación no se cerró" in w for w in run.warnings)
