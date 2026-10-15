@@ -27,6 +27,7 @@ from betsson.site.session import BrowserSession, SessionUnavailable
 ACCOUNTS = ("funded", "empty")  # "funded": con saldo (S1); "empty": sin saldo (S2)
 ACCOUNT_ALIASES = {"main": "funded"}  # nombre antiguo, se mantiene por compatibilidad
 WAIT_TIMEOUT_S = 10 * 60
+CHECK_TIMEOUT_MS = 20_000  # tope de cada operación de --check (la carga del lobby tiene el suyo, 60 s)
 WAIT_POLL_S = 15  # comprobación espaciada: cada una abre y cierra una pestaña propia
 
 log = logging.getLogger("login_asistido")
@@ -37,7 +38,8 @@ def _check(session: BrowserSession, *, record: bool) -> bool:
     with sync_playwright() as p:
         _browser, page = session.connect(p)
         try:
-            site = BetssonSite(page, session.market, account=session.account, login_mode="session", session=session)
+            site = BetssonSite(page, session.market, account=session.account, login_mode="session", session=session,
+                               timeout_ms=CHECK_TIMEOUT_MS)
             ok = site.login()  # en modo "session" solo comprueba; nunca escribe credenciales
         finally:
             page.close()
@@ -50,8 +52,6 @@ def _check(session: BrowserSession, *, record: bool) -> bool:
 def _peek(session: BrowserSession) -> bool:
     """Solo MIRA las pestañas abiertas (sin navegar ni abrir ninguna, para no robar el foco a quien escribe)."""
     market = session.market
-    labels = "|".join(re.escape(label) for label in market.expected_texts.balance_labels)
-    balance_button = re.compile(rf"^\s*({labels})\s*$", re.IGNORECASE)
     with sync_playwright() as p:
         browser = p.chromium.connect_over_cdp(session.cdp_url)
         for context in browser.contexts:
@@ -59,7 +59,7 @@ def _peek(session: BrowserSession) -> bool:
                 if not page.url.startswith(market.origin):
                     continue
                 try:
-                    logged = page.get_by_role("button", name=balance_button).filter(visible=True).count() > 0
+                    logged = page.locator(sel.BALANCE_BUTTON).filter(visible=True).count() == 1
                     offered = page.get_by_text(sel.LOGIN_OPEN).filter(visible=True).count() > 0
                 except PlaywrightError:  # la pestaña está navegando (p. ej. justo al entrar): se mira en la siguiente
                     continue

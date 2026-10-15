@@ -73,6 +73,10 @@ class SessionLimitsConfig(_Strict):
     session_hours: float = Field(
         default=0.25, gt=0, le=24, description="Duración de la sesión de juego que se elige (para saber si sigue activa)."
     )
+    pre_session_notices: list[str] = Field(
+        default_factory=list,
+        description="Avisos previos (juego responsable) que el jugador acepta con el mismo botón de submit_pattern.",
+    )
     existing_session_pattern: str | None = Field(
         default=None, description="Aviso de que ya hay una sesión de juego activa: se anota como motivo, no es FAIL."
     )
