@@ -556,7 +556,7 @@ def test_unknown_bet_strategy_is_rejected(tmp_path: Path) -> None:
 def test_step_strategy_changes_bet_once_and_plays_new_value(tmp_path: Path) -> None:
     registry = FakeRegistry()
     eyes = FakeGameEyes(registry.profile, tmp_path, [reading("100.00"), reading("98.20")], reading("2.00"),
-                        step_bet=reading("1.80"))
+                        step_bet=reading("1.80"), bet_targets=("min", "above_balance", "one_step"))
     site = FakeBetssonSite([reading("100.00"), reading("98.20")], tmp_path)
     run = run_scenario(market=FakeMarket(), scenario=Scenario.S1, site=site, registry=registry,
                        eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="r")
@@ -567,7 +567,8 @@ def test_step_strategy_changes_bet_once_and_plays_new_value(tmp_path: Path) -> N
 
 def test_step_strategy_without_support_plays_visible_and_warns(tmp_path: Path) -> None:
     registry = FakeRegistry()
-    eyes = FakeGameEyes(registry.profile, tmp_path, [reading("100.00"), reading("98.00")], reading("2.00"))
+    eyes = FakeGameEyes(registry.profile, tmp_path, [reading("100.00"), reading("98.00")], reading("2.00"),
+                        bet_targets=("min", "above_balance", "one_step"))
 
     def no_step(target):
         if target == "one_step":
@@ -592,3 +593,53 @@ def test_step_is_not_requested_from_eyes_that_do_not_declare_it(tmp_path: Path) 
                        eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="r")
     assert eyes.bets_set == []  # nunca se pide one_step a ojos que no lo declaran
     assert any("bet_targets" in w for w in run.warnings) and run.outcome == "PASS"
+
+
+
+# --- wager_is_used_wager independiente de la regla del saldo -----------------------------
+
+
+def _s1_with_bets(tmp_path: Path, *, initial: str, step: str, game=("100.00", "98.20"),
+                  betsson=("100.00", "98.20")):
+    """S1 con estrategia step: la apuesta visible es `initial` y tras set_bet("one_step") pasa a `step`."""
+    registry = FakeRegistry()
+    eyes = FakeGameEyes(registry.profile, tmp_path, [reading(game[0]), reading(game[1])], reading(initial),
+                        step_bet=reading(step), bet_targets=("min", "above_balance", "one_step"))
+    site = FakeBetssonSite([reading(betsson[0]), reading(betsson[1])], tmp_path)
+    return run_scenario(market=FakeMarket(), scenario=Scenario.S1, site=site, registry=registry,
+                        eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="r",
+                        bet_strategy="step")
+
+
+def test_wager_step_change_seen_and_kept_passes(tmp_path: Path) -> None:
+    run = _s1_with_bets(tmp_path, initial="2.00", step="1.80")
+    r = by_id(run)[CheckId.WAGER_IS_USED_WAGER]
+    assert r.status == "PASS", r.reason
+    assert "cambiada de 2.00 EUR a 1.80 EUR (baja)" in r.reason
+
+
+def test_wager_step_without_visible_change_is_inconclusive(tmp_path: Path) -> None:
+    run = _s1_with_bets(tmp_path, initial="2.00", step="2.00", game=("100.00", "98.00"),
+                        betsson=("100.00", "98.00"))
+    r = by_id(run)[CheckId.WAGER_IS_USED_WAGER]
+    assert r.failure_kind is FailureKind.INCONCLUSIVE and "sigue en 2.00 EUR" in r.reason
+
+
+def test_wager_changed_during_spin_is_integration_failure() -> None:
+    from betsson.checks.s1 import S1Observation, evaluate_s1
+
+    obs = S1Observation(bet_strategy="step", bet_step_requested=True, bet_initial=reading("2.00"),
+                        bet=reading("1.80"), bet_after=reading("2.00"))
+    r = next(x for x in evaluate_s1(obs, FakeMarket()) if x.id is CheckId.WAGER_IS_USED_WAGER)
+    assert r.failure_kind is FailureKind.INTEGRATION and "cambió durante la tirada" in r.reason
+
+
+def test_wager_check_does_not_use_balance_equation() -> None:
+    """Independiente: con los saldos sin leer, wager_is_used_wager puede dar PASS por sí solo."""
+    from betsson.checks.s1 import S1Observation, evaluate_s1
+
+    obs = S1Observation(bet_strategy="current", bet_initial=reading("0.10"), bet=reading("0.10"),
+                        bet_after=reading("0.10"))
+    results = {x.id: x for x in evaluate_s1(obs, FakeMarket())}
+    assert results[CheckId.WAGER_IS_USED_WAGER].status == "PASS"
+    assert results[CheckId.INGAME_BALANCE_CONSISTENT].failure_kind is FailureKind.INCONCLUSIVE
