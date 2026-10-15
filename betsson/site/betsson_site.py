@@ -47,6 +47,10 @@ _REAL_TOKENS = {"real", "realmoney", "real_money", "money", "cash"}
 
 # Cuenta de prueba: "funded" (con saldo, S1) o "empty" (sin saldo, S2: BETSSON_<MERCADO>_EMPTY_*).
 Account = Literal["funded", "empty"]
+# "auto": el comprobador escribe las credenciales. "assisted" (plan B, solo con el visto bueno de los
+# mentores): una PERSONA las escribe en la ventana y el comprobador sigue solo; el informe lo dice.
+LoginMode = Literal["auto", "assisted"]
+ASSISTED_LOGIN_TIMEOUT_MS = 5 * 60_000
 
 
 class SiteError(RuntimeError):
@@ -111,6 +115,7 @@ class BetssonSite:
         market: Market,
         *,
         account: Account = "funded",
+        login_mode: LoginMode = "auto",
         evidence_dir: Path | None = None,
         trace: TraceControl | None = None,
         pacer: Pacer | None = None,
@@ -119,6 +124,8 @@ class BetssonSite:
         self.page = page
         self.market = market
         self.account = account
+        self.login_mode = login_mode
+        self.login_assisted = False  # True si la sesión la inició una persona (se muestra en el informe)
         self.evidence_dir = evidence_dir or Path("outputs") / "site" / market.id
         self.last_login_error: str | None = None
         self._trace = trace or NoTrace()
@@ -198,6 +205,8 @@ class BetssonSite:
 
         Faltar las variables de entorno no es un rechazo: lanza MissingCredentialsError.
         """
+        if self.login_mode == "assisted":
+            return self._assisted_login()
         creds = credentials or credentials_for(self.market, insufficient_funds=self.account == "empty")
         self.last_login_error = None
         if not self.page.url.startswith(self.market.origin):
@@ -233,6 +242,35 @@ class BetssonSite:
             self.screenshot("login_rejected")
             return False
         log.info("sesión iniciada en %s (cuenta %s)", self.market.id, self.account)
+        return True
+
+    def _assisted_login(self) -> bool:
+        """Plan B: abre el formulario y ESPERA a que una persona escriba y envíe. Traza detenida mientras tanto."""
+        self.last_login_error = None
+        if not self.page.url.startswith(self.market.origin):
+            self.goto_lobby()
+        if self.page.locator(sel.LOGIN_PASSWORD).filter(visible=True).count() == 0:
+            self._pacer.wait_turn()
+            self._human_click(self.page.get_by_text(sel.LOGIN_OPEN).filter(visible=True).first)
+        password = self.page.locator(sel.LOGIN_PASSWORD)
+        password.wait_for(state="visible")
+        self._mask(self.page.locator(sel.LOGIN_USERNAME))
+        self._mask(password)
+        log.warning("LOGIN ASISTIDO: escribe las credenciales en la ventana de Chrome y pulsa 'Iniciar sesión' "
+                    "(tienes %d min). La traza está detenida.", ASSISTED_LOGIN_TIMEOUT_MS // 60_000)
+        with trace_paused(self._trace):
+            try:  # señal: el formulario desaparece cuando Betsson acepta el login
+                password.wait_for(state="detached", timeout=ASSISTED_LOGIN_TIMEOUT_MS)
+            except PlaywrightError:
+                self.last_login_error = f"login asistido sin completar en {self.market.id}: {self._visible_error()}"
+            finally:
+                self._clear_fields(self.page.locator(sel.LOGIN_USERNAME), password)
+        if self.last_login_error:
+            log.warning("%s", self.last_login_error)
+            self.screenshot("login_rejected")
+            return False
+        self.login_assisted = True
+        log.info("sesión iniciada en %s por una persona (login asistido)", self.market.id)
         return True
 
     def _human_click(self, target: Locator) -> None:

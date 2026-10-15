@@ -34,6 +34,8 @@ def main() -> int:
     parser.add_argument("--account", choices=["funded", "empty"], default="funded",
                         help="funded: cuenta con saldo (S1); empty: cuenta sin saldo (S2)")
     parser.add_argument("--headless", action="store_true")
+    parser.add_argument("--login", choices=["auto", "asistido"], default="auto",
+                        help="asistido (plan B, solo con visto bueno de los mentores): una persona escribe las credenciales")
     parser.add_argument("--no-game", action="store_true", help="solo login y saldo, sin abrir el juego")
     parser.add_argument("--profile-dir", type=Path, default=None,
                         help="perfil persistente de Chrome (por defecto ../.chrome-profile-<mercado>)")
@@ -57,7 +59,8 @@ def main() -> int:
         )
         trace = SegmentedTrace(context, out)  # se detiene del todo durante el login
         page = context.pages[0] if context.pages else context.new_page()
-        site = BetssonSite(page, market, account=args.account, evidence_dir=out, trace=trace)
+        site = BetssonSite(page, market, account=args.account, evidence_dir=out, trace=trace,
+                           login_mode="assisted" if args.login == "asistido" else "auto")
         status = 0
         logged_in = False
         try:
@@ -68,6 +71,8 @@ def main() -> int:
                     logging.error("login rechazado: %s", site.last_login_error)
                     return 1
                 logged_in = True
+                if site.login_assisted:
+                    logging.warning("login_ok: ASISTIDO por una persona (no automatizado)")
                 site.screenshot("02_after_login")
                 balance = site.read_balance()
                 logging.info("saldo Betsson: %s | moneda vista: %s | %s", balance.money, balance.currency_seen,

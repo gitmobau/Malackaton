@@ -2,6 +2,7 @@
 from betsson.site.betsson_site import (
     Account,
     BetssonSite,
+    LoginMode,
     GameHandle,
     GameInfo,
     GameLaunchError,
@@ -15,6 +16,7 @@ from betsson.site.tracing import NoTrace, SegmentedTrace, TraceControl, trace_pa
 __all__ = [
     "Account",
     "BetssonSite",
+    "LoginMode",
     "Credentials",
     "GameHandle",
     "GameInfo",
