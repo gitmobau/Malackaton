@@ -1,0 +1,99 @@
+"""Esquema de configuración de un mercado (config/markets/<id>.json).
+
+Un mercado nuevo = un archivo JSON que pase esta validación. Nada de mercado,
+moneda, idioma ni formato numérico vive fijo en el código.
+"""
+from __future__ import annotations
+
+from decimal import Decimal
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
+
+_ENV_NAME = r"^[A-Z][A-Z0-9_]*$"
+
+
+class _Strict(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class CurrencyConfig(_Strict):
+    code: str = Field(pattern=r"^[A-Z]{3}$", description="ISO 4217, p. ej. EUR, PEN")
+    symbols: list[str] = Field(min_length=1, description="Símbolos y alias visibles: '€', 'EUR', 'S/'…")
+    symbol_position: Literal["before", "after"]
+
+    @field_validator("symbols")
+    @classmethod
+    def _no_empty_symbols(cls, v: list[str]) -> list[str]:
+        if any(not s.strip() for s in v):
+            raise ValueError("los símbolos no pueden estar vacíos")
+        return v
+
+
+class NumberFormat(_Strict):
+    thousands_sep: str = Field(min_length=1, max_length=1)
+    decimal_sep: Literal[",", "."]
+    decimals: int = Field(ge=0, le=4)
+
+    @model_validator(mode="after")
+    def _different_separators(self) -> "NumberFormat":
+        if self.thousands_sep == self.decimal_sep:
+            raise ValueError("el separador de miles y el decimal deben ser distintos")
+        return self
+
+
+class ExpectedTexts(_Strict):
+    """Textos visibles esperados en el idioma del mercado (se comparan sin distinguir mayúsculas)."""
+
+    insufficient_funds: list[str] = Field(min_length=1)
+    balance_labels: list[str] = Field(min_length=1)
+    bet_labels: list[str] = Field(min_length=1)
+    win_labels: list[str] = Field(min_length=1)
+
+
+class CredentialsEnv(_Strict):
+    """Nombres de las variables de entorno (.env / GitHub Secrets). Nunca los valores."""
+
+    username: str = Field(pattern=_ENV_NAME)
+    password: str = Field(pattern=_ENV_NAME)
+    username_insufficient: str | None = Field(default=None, pattern=_ENV_NAME)
+    password_insufficient: str | None = Field(default=None, pattern=_ENV_NAME)
+
+
+class SiteConfig(_Strict):
+    """Lo de la web de Betsson que puede cambiar por mercado. Lo común está en betsson/site/selectors.py."""
+
+    casino_path: str = "/casino"
+    search_terms: dict[str, str] = Field(
+        default_factory=dict,
+        description="Término de búsqueda por slug de juego, si en este mercado el nombre visible difiere.",
+    )
+
+
+class Market(_Strict):
+    id: str = Field(pattern=r"^[a-z]{2,5}$")
+    name: str
+    base_url: HttpUrl
+    locale: str = Field(pattern=r"^[a-z]{2}-[A-Z]{2}$")
+    language: str = Field(pattern=r"^[a-z]{2}$")
+    timezone: str
+    currency: CurrencyConfig
+    number_format: NumberFormat
+    min_bet: Decimal = Field(gt=0)
+    expected_texts: ExpectedTexts
+    credentials_env: CredentialsEnv
+    site: SiteConfig = Field(default_factory=SiteConfig)
+    real_execution_enabled: bool = Field(
+        description="False si no hay cuenta: el informe lo muestra como 'mercado configurado; ejecución real desactivada'."
+    )
+    verified: bool = Field(description="True si la estructura del sitio se ha comprobado en real.")
+
+    @model_validator(mode="after")
+    def _language_matches_locale(self) -> "Market":
+        if not self.locale.startswith(self.language + "-"):
+            raise ValueError(f"language '{self.language}' no casa con locale '{self.locale}'")
+        return self
+
+    @property
+    def origin(self) -> str:
+        return str(self.base_url).rstrip("/")
