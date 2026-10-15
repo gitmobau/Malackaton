@@ -31,8 +31,10 @@ jobs:
   real:
     name: Real · ${{ matrix.market }}
     needs: unit
-    # Nunca con pull_request: el runner es un portátil del equipo y un PR ejecutaría código ajeno con los secretos.
-    if: github.event_name != 'pull_request'
+    # Solo a mano (Actions → Run workflow). Nunca con pull_request: el runner es el portátil del equipo
+    # y un PR ejecutaría código ajeno con los secretos. Tampoco en cada push: abriría Chrome en la máquina
+    # donde trabajan A y B y gastaría saldo de las cuentas de prueba.
+    if: github.event_name == 'workflow_dispatch'
     # Runner propio en España: los runners de GitHub tienen IP de EE. UU. y Betsson geobloquea.
     runs-on: [self-hosted, windows, betsson-es]
     timeout-minutes: 30
@@ -62,6 +64,16 @@ jobs:
         if: env.ENABLED != 'true'
         shell: powershell
         run: Write-Output "Mercado $env:MARKET configurado; ejecución real desactivada (sin cuenta)."
+
+      - name: Comprobar que el runner tiene escritorio
+        # --headed necesita una sesión interactiva: el runner se arranca con run.cmd en una terminal, no como servicio.
+        if: env.ENABLED == 'true'
+        shell: powershell
+        run: |
+          if ((Get-Process -Id $PID).SessionId -eq 0) {
+            Write-Output "::error::El runner corre como servicio (sesión 0, sin escritorio). Arráncalo con run.cmd en una terminal."
+            exit 1
+          }
 
       - uses: actions/checkout@v4
         if: env.ENABLED == 'true'
