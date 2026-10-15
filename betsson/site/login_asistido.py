@@ -1,8 +1,8 @@
 """Login asistido: una PERSONA inicia sesión en un Chrome normal y las ejecuciones lo reutilizan por CDP.
 
-    python -m betsson.site.login_asistido --market es --account main     # abre Chrome; la persona inicia sesión
-    python -m betsson.site.login_asistido --market es --account main --check    # comprueba y anota la hora
-    python -m betsson.site.login_asistido --market es --account main --logout   # al final del día
+    python -m betsson.site.login_asistido --market es --account funded   # abre Chrome; la persona inicia sesión
+    python -m betsson.site.login_asistido --market es --account funded --check    # comprueba y anota la hora
+    python -m betsson.site.login_asistido --market es --account funded --logout   # al final del día
 
 La persona SOLO escribe usuario y contraseña y pulsa "Iniciar sesión". Todo lo demás (límites de sesión
 del regulador, saldo, juego) lo hace el comprobador. Por defecto el script no se engancha a Chrome
@@ -24,7 +24,8 @@ from betsson.site import selectors as sel
 from betsson.site.betsson_site import BetssonSite
 from betsson.site.session import BrowserSession, SessionUnavailable
 
-ACCOUNT_ALIASES = {"main": "funded", "funded": "funded", "empty": "empty"}
+ACCOUNTS = ("funded", "empty")  # "funded": con saldo (S1); "empty": sin saldo (S2)
+ACCOUNT_ALIASES = {"main": "funded"}  # nombre antiguo, se mantiene por compatibilidad
 WAIT_TIMEOUT_S = 10 * 60
 WAIT_POLL_S = 15  # comprobación espaciada: cada una abre y cierra una pestaña propia
 
@@ -84,7 +85,8 @@ def _logout(session: BrowserSession) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--market", default="es")
-    parser.add_argument("--account", choices=sorted(ACCOUNT_ALIASES), default="main")
+    parser.add_argument("--account", choices=[*ACCOUNTS, *ACCOUNT_ALIASES], default="funded",
+                        help="funded: cuenta con saldo (S1); empty: cuenta sin saldo (S2)")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true", help="comprueba que la sesión está iniciada y anota la hora")
     mode.add_argument("--wait", action="store_true", help="abre Chrome y espera a que la persona inicie sesión")
@@ -92,7 +94,8 @@ def main() -> int:
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-    session = BrowserSession(load_market(args.market), ACCOUNT_ALIASES[args.account])
+    account = ACCOUNT_ALIASES.get(args.account, args.account)
+    session = BrowserSession(load_market(args.market), account)
     try:
         if args.check:
             ok = _check(session, record=True)
@@ -109,11 +112,11 @@ def main() -> int:
             session.launch_chrome()
             log.info("Chrome abierto (perfil %s, puerto %d)", session.profile_dir, session.port)
         log.info(">>> En esa ventana: pulsa 'Iniciar sesión', escribe usuario y contraseña de la cuenta '%s' y entra.",
-                 args.account)
+                 account)
         log.info(">>> NO toques el diálogo de límites de sesión: lo gestiona el comprobador. No cierres la ventana.")
         if not args.wait:
             log.info(">>> Cuando hayas entrado: python -m betsson.site.login_asistido --market %s --account %s --check",
-                     args.market, args.account)
+                     args.market, account)
             return 0
         deadline = time.monotonic() + WAIT_TIMEOUT_S
         while time.monotonic() < deadline:
