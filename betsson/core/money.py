@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
 
 
 class CurrencyMismatch(ValueError):
@@ -22,9 +23,16 @@ class Money(BaseModel):
     @classmethod
     def _iso_code(cls, value: str) -> str:
         code = value.strip().upper()
-        if len(code) != 3 or not code.isalpha():
+        if len(code) != 3 or not (code.isascii() and code.isalpha()):
             raise ValueError(f"moneda ISO 4217 no válida: {value!r}")
         return code
+
+    @field_validator("amount", mode="before")
+    @classmethod
+    def _no_float(cls, value: Any) -> Any:
+        if isinstance(value, float):
+            raise ValueError("usa Decimal o str para importes, nunca float")
+        return value
 
     @field_validator("amount")
     @classmethod
@@ -45,5 +53,9 @@ class Money(BaseModel):
         self._same_currency(other)
         return Money(amount=self.amount - other.amount, currency=self.currency)
 
+    @field_serializer("amount")
+    def _plain(self, value: Decimal) -> str:
+        return format(value, "f")
+
     def __str__(self) -> str:
-        return f"{self.amount} {self.currency}"
+        return f"{format(self.amount, 'f')} {self.currency}"
