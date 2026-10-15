@@ -12,10 +12,12 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 from betsson.market import load_market
+from betsson.core import GameOpenError
 from betsson.site import BetssonSite, ChunkedTrace, MissingCredentialsError, SiteError
 
 VIEWPORT = {"width": 1366, "height": 768}
@@ -30,6 +32,7 @@ def main() -> int:
     parser.add_argument("--account", choices=["funded", "empty"], default="funded",
                         help="funded: cuenta con saldo (S1); empty: cuenta sin saldo (S2)")
     parser.add_argument("--headless", action="store_true")
+    parser.add_argument("--no-game", action="store_true", help="solo login y saldo, sin abrir el juego")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -45,25 +48,32 @@ def main() -> int:
         context.tracing.start(screenshots=True, snapshots=True)
         trace = ChunkedTrace(context, out)
         page = context.new_page()
-        site = BetssonSite(page, market, account=args.account, trace=trace)
+        site = BetssonSite(page, market, account=args.account, evidence_dir=out, trace=trace)
         status = 0
         try:
             site.goto_lobby()
             page.screenshot(path=out / "01_lobby.png")
             if not args.no_login:
-                site.login()
-                page.screenshot(path=out / "02_after_login.png")
-                logging.info("saldo Betsson: %s", site.read_balance())
+                if not site.login():
+                    logging.error("login rechazado: %s", site.last_login_error)
+                    return 1
+                site.screenshot("02_after_login")
+                balance = site.read_balance()
+                logging.info("saldo Betsson: %s | moneda vista: %s | %s", balance.money, balance.currency_seen,
+                             balance.reason or "ok")
+            if args.no_game:
+                return status
             game = site.open_game(args.slug, args.query)
-            logging.info("iframe: %s | proveedor (API Betsson): %s", game.iframe_url[:120], game.info.provider)
-            game.canvas.screenshot(path=out / "03_canvas.png")
-            page.screenshot(path=out / "04_game_page.png")
+            logging.info("proveedor (API Betsson): %s | modo: %s (%s)", game.info.provider, game.play_mode,
+                         game.play_mode_reason)
+            logging.info("iframe: %s", game.iframe_url[:120])
+            Image.fromarray(game.capture()).save(out / "03_canvas.png")
         except MissingCredentialsError as exc:
             logging.error("%s", exc)
             status = 2
-        except (SiteError, PlaywrightTimeoutError) as exc:
+        except (SiteError, GameOpenError, PlaywrightTimeoutError) as exc:
             logging.error("%s: %s", type(exc).__name__, exc)
-            page.screenshot(path=out / "error.png")
+            site.screenshot("error")
             status = 1
         finally:
             context.tracing.stop(path=out / "trace-final.zip")

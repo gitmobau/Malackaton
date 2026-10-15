@@ -1,6 +1,6 @@
 """Web de Betsson: cookies, login, saldo y apertura de juegos."""
 from betsson.site.betsson_site import (
-    BalanceNotFoundError,
+    Account,
     BetssonSite,
     GameHandle,
     GameInfo,
@@ -13,7 +13,7 @@ from betsson.site.credentials import Credentials, MissingCredentialsError, crede
 from betsson.site.tracing import ChunkedTrace, NoTrace, TraceControl, trace_paused
 
 __all__ = [
-    "BalanceNotFoundError",
+    "Account",
     "BetssonSite",
     "ChunkedTrace",
     "Credentials",

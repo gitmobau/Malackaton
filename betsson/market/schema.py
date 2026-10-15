@@ -60,10 +60,25 @@ class CredentialsEnv(_Strict):
     password_insufficient: str | None = Field(default=None, pattern=_ENV_NAME)
 
 
+class SessionLimitsConfig(_Strict):
+    """Diálogo de límites de sesión que exige el regulador antes de jugar (p. ej. la DGOJ en es).
+
+    Se elige siempre lo más prudente: poco tiempo y el límite de pérdidas más bajo. Textos como regex.
+    """
+
+    title_pattern: str = Field(min_length=1, description="Detecta el diálogo por su título visible.")
+    time_option_pattern: str = Field(min_length=1, description="Botón de tiempo de juego a pulsar.")
+    loss_option_pattern: str = Field(min_length=1, description="Botón de límite de pérdidas a pulsar.")
+    submit_pattern: str = Field(min_length=1, description="Botón que confirma e inicia la sesión de juego.")
+
+
 class SiteConfig(_Strict):
     """Lo de la web de Betsson que puede cambiar por mercado. Lo común está en betsson/site/selectors.py."""
 
     casino_path: str = "/casino"
+    session_limits: SessionLimitsConfig | None = Field(
+        default=None, description="None si el mercado no pide límites de sesión antes de jugar."
+    )
     search_terms: dict[str, str] = Field(
         default_factory=dict,
         description="Término de búsqueda por slug de juego, si en este mercado el nombre visible difiere.",

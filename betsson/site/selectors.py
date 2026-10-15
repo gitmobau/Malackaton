@@ -27,6 +27,8 @@ SEARCH_RESULT_LINK = "a[data-test-id='game-thumbnail-title']"
 
 # --- Página del juego --------------------------------------------------------
 LOGIN_TO_PLAY = re.compile(r"ingresar y jugar|log ?in and play|login to play", re.I)
+# Botón de la página del juego que lo lanza (con sesión iniciada).
+PLAY_BUTTON = re.compile(r"^\s*(jugar|jugar ahora|play|play now)\s*$", re.I)
 # Iframes de terceros que nunca son el juego.
 NON_GAME_IFRAME_HOSTS = ("group-ib.com", "onetrust", "fullstory", "google", "doubleclick", "facebook")
 GAME_IFRAME_MIN_SIZE = (300, 200)  # px CSS: el juego es el iframe grande

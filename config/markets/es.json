@@ -24,7 +24,15 @@
     "username_insufficient": "BETSSON_ES_EMPTY_USERNAME",
     "password_insufficient": "BETSSON_ES_EMPTY_PASSWORD"
   },
-  "site": { "casino_path": "/casino" },
+  "site": {
+    "casino_path": "/casino",
+    "session_limits": {
+      "title_pattern": "l[ií]mite de tiempo de sesi[oó]n|tiempo de juego",
+      "time_option_pattern": "^\\s*15 ?min\\s*$",
+      "loss_option_pattern": "^\\s*25\\s*%",
+      "submit_pattern": "^\\s*iniciar sesi[oó]n\\s*$"
+    }
+  },
   "real_execution_enabled": true,
   "verified": true
 }

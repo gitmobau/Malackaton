@@ -12,11 +12,11 @@ Formato aceptado:
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 from pathlib import Path
 
+from betsson.core.money import Money  # contrato de C; se reexporta desde betsson.market
 from betsson.market.loader import MARKETS_DIR, list_markets, load_market
 from betsson.market.schema import Market, NumberFormat
 
@@ -29,15 +29,6 @@ _MINUS = "-−"
 
 class MoneyParseError(ValueError):
     """El texto no contiene un importe legible sin ambigüedad."""
-
-
-@dataclass(frozen=True)
-class Money:
-    amount: Decimal
-    currency: str  # ISO 4217
-
-    def __str__(self) -> str:
-        return f"{self.amount} {self.currency}"
 
 
 # --------------------------------------------------------------------------- moneda
