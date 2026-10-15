@@ -56,13 +56,12 @@ def _label_match(box: TextBox, aliases: list[str]) -> str | None:
 
 def _strip_label(text: str, alias_norm: str) -> str:
     """Quita la etiqueta y los dos puntos del principio de la caja: 'CREDIT: 100 €' -> '100 €'."""
-    norm = normalize(text)
-    if not norm.startswith(alias_norm):
+    stripped = text.strip()
+    # Se corta por caracteres (no por palabras): 'Saldo:25000.00' no lleva espacio tras la etiqueta.
+    # normalize() quita tildes sin cambiar el número de letras, así que el prefijo mide lo mismo.
+    if normalize(stripped[: len(alias_norm)]) != alias_norm:
         return text
-    # La normalización conserva las palabras: se corta por número de palabras de la etiqueta.
-    words = text.split()
-    rest = words[len(alias_norm.split()):]
-    return " ".join(rest).lstrip(":").strip()
+    return stripped[len(alias_norm):].lstrip(" :").strip()
 
 
 def _distance_right(label: TextBox, box: TextBox) -> float | None:
@@ -149,6 +148,9 @@ def find_amount(
     if hint is not None and len(candidates) > 1:
         x0, y0, x1, y1 = hint
         inside = [c for c in candidates if x0 <= c.label.cx <= x1 and y0 <= c.label.cy <= y1]
-        if inside:
-            candidates = inside
+        if not inside:
+            # Varias etiquetas iguales (p. ej. apuesta en monedas y en dinero) y ninguna donde dice el
+            # perfil: elegir una sería adivinar. No concluyente.
+            return None
+        candidates = inside
     return max(candidates, key=lambda c: c.confidence)
