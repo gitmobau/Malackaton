@@ -8,6 +8,10 @@ Repositorio del equipo para la **Malachathon** (Málaga). Retos y orden de prefe
 | Ruta | Qué es |
 | --- | --- |
 | `CLAUDE.md` | Contexto del hackathon y reglas de trabajo para Claude Code |
+| `docs/PREPARACION.md` | **Reto Betsson**: requisitos, arquitectura, incógnitas, decisiones y riesgos (documento vivo) |
+| `docs/PLAN_24H.md` | Áreas del equipo, arranque en paralelo, bloques horarios e hitos |
+| `docs/PREGUNTAS.md` | Preguntas abiertas a mentores, organización y equipo |
+| `docs/recon/` | Capturas de la exploración de la web pública de Betsson |
 | `docs/retos.md` | Texto oficial de los 6 retos y nuestro orden |
 | `.claude/` | [ECC](https://github.com/affaan-m/ECC) copiado dentro del proyecto: agentes, skills, comandos y reglas. Funciona igual en local y en sesiones en la nube |
 | `setup-portatil.ps1` | Deja el portátil listo con todo en el disco D: |
@@ -48,8 +52,15 @@ Abre **PowerShell** (no hace falta como administrador).
 
    La primera vez te pedirá iniciar sesión con tu cuenta de Claude.
 
-5. **Comprueba que ECC está cargado** preguntándole a Claude: *"¿Qué skills y agentes de ECC tienes?"*.
-   Los comandos van sin prefijo: `/plan`, `/code-review`, `/build-fix`.
+5. **Instala el plugin ECC (el mismo que usa el coordinador).** El repo lo declara en `.claude/settings.json`.
+   Al abrir `claude` en el repo, acepta confiar en la carpeta e **instala `ecc@ecc`** cuando te lo pida.
+   Si no te lo pide, ejecuta `/plugin` y busca `ecc` en el marketplace `ecc`.
+   En las opciones del plugin, deja **`hooks_enabled = true`** y **`hook_profile = standard`**. Esta preferencia es personal y se guarda en tu configuración de usuario.
+   Después ejecuta `/reload-plugins`.
+
+6. **Comprueba que ECC está cargado** preguntándole a Claude: *"¿Qué skills y agentes de ECC tienes?"*.
+   Con el plugin, los comandos llevan prefijo (`/ecc:plan`, `/ecc:code-review`, `/ecc:build-fix`) y deberías ver unos 77 agentes `ecc:*`.
+   La copia suelta de `.claude/` (comandos sin prefijo) se queda solo para las sesiones en la nube.
 
 ### Dónde queda cada cosa
 
