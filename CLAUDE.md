@@ -74,7 +74,7 @@ Hasta las fusiones, las demás áreas se sustituyen por simulaciones (`Fake…`)
 
 ## Entorno
 - Todo vive en el disco **D:**. No escribas fuera de D: salvo que sea imprescindible, y avisa si lo es.
-- **Modo de un portátil**: las 4 sesiones corren en el portátil de Maiki, cada una en su worktree (`D:\MAIKI\Malackathonrea-<X>-<nombre>`, en su rama `feat/<X>-...`). **Trabaja solo en tu worktree**, no abras ni edites los de los demás. Venv compartido en `D:\MAIKI\Malackathon\.venv`. En otro portátil, el repo va en `D:\Malackaton` con su propio `.venv`.
+- **Modo de un portátil**: las 4 sesiones corren en el portátil de Maiki, cada una en su worktree (`D:\MAIKI\Malackathon\area-<X>-<nombre>`, en su rama `feat/<X>-...`). **Trabaja solo en tu worktree**, no abras ni edites los de los demás. Venv compartido en `D:\MAIKI\Malackathon\.venv`. En otro portátil, el repo va en `D:\Malackaton` con su propio `.venv`.
 - Python en el `.venv` indicado arriba (en Windows se activa con `Scripts\Activate.ps1`). Cachés en `D:\DevCache`, configuradas por `setup-portatil.ps1`.
 - Las dependencias nuevas se piden a D (`requirements.txt`) y se añaden en los hitos.
 - En una sesión en la nube la red está limitada: lo que tenga que entrar en Betsson se ejecuta en el portátil.

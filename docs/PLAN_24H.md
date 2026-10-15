@@ -26,10 +26,10 @@ Las 4 sesiones de Claude corren en **el portátil de Maiki**, una por área, cad
 
 | Área | Carpeta (worktree) | Rama |
 |---|---|---|
-| A, Maiki | `D:\MAIKI\Malackathonrea-A-maiki` | `feat/A-betsson-web` |
-| B, Alejandro | `D:\MAIKI\Malackathonrea-B-alejandro` | `feat/B-vision` |
-| C, Migue | `D:\MAIKI\Malackathonrea-C-migue` | `feat/C-core` |
-| D, Guilli | `D:\MAIKI\Malackathonrea-D-guilli` | `feat/D-infra` |
+| A, Maiki | `D:\MAIKI\Malackathon\area-A-maiki` | `feat/A-betsson-web` |
+| B, Alejandro | `D:\MAIKI\Malackathon\area-B-alejandro` | `feat/B-vision` |
+| C, Migue | `D:\MAIKI\Malackathon\area-C-migue` | `feat/C-core` |
+| D, Guilli | `D:\MAIKI\Malackathon\area-D-guilli` | `feat/D-infra` |
 | Coordinador | `D:\MAIKI\Malackathon\equipo` | `docs/...`, revisión de PR |
 
 Reglas del modo de un portátil:
