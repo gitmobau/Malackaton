@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 from playwright.sync_api import ElementHandle, Frame, Locator, Page, Response
@@ -30,6 +30,10 @@ _FRAME_POLL_MS = 1_000  # tope de cada espera a un evento de frame, no una pausa
 
 # Cabeceras que la web manda a su API (marketcode, brandid, x-obg-*). Se copian de sus propias peticiones.
 _API_HEADER_PREFIXES = ("marketcode", "brandid", "x-obg-", "accept-language")
+
+# Cuenta de prueba: "funded" (con saldo, S1) o "empty" (sin saldo, S2: BETSSON_<MERCADO>_EMPTY_*).
+Account = Literal["funded", "empty"]
+
 
 class SiteError(RuntimeError):
     """Fallo de integración con la web de Betsson."""
@@ -87,12 +91,14 @@ class BetssonSite:
         page: Page,
         market: Market,
         *,
+        account: Account = "funded",
         trace: TraceControl | None = None,
         pacer: Pacer | None = None,
         timeout_ms: int = DEFAULT_TIMEOUT_MS,
     ) -> None:
         self.page = page
         self.market = market
+        self.account = account
         self._trace = trace or NoTrace()
         self._pacer = pacer or Pacer()
         self._games: dict[str, GameInfo] = {}
@@ -132,9 +138,9 @@ class BetssonSite:
     def is_logged_in(self) -> bool:
         return self._find_balance_locator() is not None
 
-    def login(self, credentials: Credentials | None = None, *, insufficient_funds: bool = False) -> None:
+    def login(self, credentials: Credentials | None = None) -> None:
         """Inicia sesión con la cuenta de prueba del mercado. La traza se pausa y los campos se tapan."""
-        creds = credentials or credentials_for(self.market, insufficient_funds=insufficient_funds)
+        creds = credentials or credentials_for(self.market, insufficient_funds=self.account == "empty")
         if "/inicio" not in self.page.url:
             if not self.page.url.startswith(self.market.origin):
                 self.goto_lobby()

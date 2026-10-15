@@ -27,6 +27,8 @@ def main() -> int:
     parser.add_argument("--slug", default="big-bass-splash")
     parser.add_argument("--query", default=None, help="texto de búsqueda si no coincide con el slug")
     parser.add_argument("--no-login", action="store_true")
+    parser.add_argument("--account", choices=["funded", "empty"], default="funded",
+                        help="funded: cuenta con saldo (S1); empty: cuenta sin saldo (S2)")
     parser.add_argument("--headless", action="store_true")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -43,7 +45,7 @@ def main() -> int:
         context.tracing.start(screenshots=True, snapshots=True)
         trace = ChunkedTrace(context, out)
         page = context.new_page()
-        site = BetssonSite(page, market, trace=trace)
+        site = BetssonSite(page, market, account=args.account, trace=trace)
         status = 0
         try:
             site.goto_lobby()
