@@ -266,7 +266,9 @@ def _with_relative_evidence(run: RunResult, base: Path) -> RunResult:
 def _with_drift(run: RunResult, baselines: BaselineStore, extra: dict[str, Any], out_dir: Path) -> RunResult:
     """Aviso si el juego cambió desde la última ejecución buena. Solo un PASS actualiza la referencia."""
     try:
-        fp = take(extra["frame"], iframe_url=extra["iframe_url"], market=run.market, game=run.game or "",
+        # Una huella por juego Y escenario: S1 y S2 usan cuentas con saldos distintos en la franja.
+        game_key = f"{run.game}-{run.scenario.value}" if run.game else ""
+        fp = take(extra["frame"], iframe_url=extra["iframe_url"], market=run.market, game=game_key,
                   provider=run.provider, run_id=run.run_id)
         warnings, evidence = check_drift(baselines, extra["frame"], fp, out_dir, update=run.outcome == "PASS")
     except Exception as exc:  # la huella es un extra: nunca debe tumbar el resultado
