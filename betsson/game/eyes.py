@@ -144,7 +144,7 @@ class GameEyes:
         return self._find_in_zone(frame, aliases, hint) if hint else None
 
     def _find_in_zone(
-        self, frame: np.ndarray, aliases: list[str], hint: tuple[int, int, int, int]
+        self, frame: np.ndarray, aliases: list[str], hint: tuple[int, int, int, int], quiet: bool = False
     ) -> AnchoredValue | None:
         height, width = frame.shape[:2]
         x0, y0, x1, y1 = hint
@@ -158,7 +158,7 @@ class GameEyes:
             for b in read_text(crop, upscale=_REREAD_UPSCALE)
         ]
         anchored = find_amount(boxes, aliases)
-        if anchored is not None:
+        if anchored is not None and not quiet:
             self.notes.append("importe encontrado releyendo ampliada la zona del perfil")
         return anchored
 
@@ -195,12 +195,15 @@ class GameEyes:
             return Reading(reason=f"el perfil '{self.profile.name}' no tiene control para la apuesta '{target}'")
         going_down = target == "min"
         balance = self.read_balance() if not going_down else None
-        current = self.read_bet()
+        # En el bucle se lee solo la zona de apuesta del perfil (rápido); el valor final se confirma con
+        # la lectura completa y su evidencia (_confirm_bet).
+        current = self._quick_bet()
         moved = False
+        position: tuple[float, float] | None = None
         for _ in range(_MAX_BET_STEPS):
             if _above(current, balance) or not current.ok:
-                return current
-            found_by_template = self._press(control)
+                return self._confirm_bet(current) if current.ok else current
+            found_by_template, position = self._press(control, position)
             after = self._read_bet_change(current)
             if not after.ok:
                 return after
@@ -214,11 +217,20 @@ class GameEyes:
         else:
             return _doubtful(current, f"la apuesta seguía cambiando tras {_MAX_BET_STEPS} pulsaciones")
         if going_down:
-            return current
+            return self._confirm_bet(current)
         return _doubtful(current, f"la apuesta máxima visible ({current.raw_text}) no supera el saldo")
 
-    def _press(self, control: Control) -> bool:
-        """Pulsa el control. Devuelve True si se localizó por plantilla dentro de su zona."""
+    def _press(
+        self, control: Control, position: tuple[float, float] | None = None
+    ) -> tuple[bool, tuple[float, float] | None]:
+        """Pulsa el control. Devuelve (localizado por plantilla, posición a reutilizar en el bucle).
+
+        La plantilla se busca una vez: el botón no se mueve entre pulsaciones (y set_bet comprueba
+        en cada paso que la apuesta cambia en el sentido pedido).
+        """
+        if position is not None:
+            self._source.click(*position)
+            return True, position
         frame = self._source.grab()
         match = find_template(frame, control.templates) if control.templates else None
         # Una coincidencia fuera de la zona del control puede ser el botón opuesto (- frente a +).
@@ -226,13 +238,41 @@ class GameEyes:
             match = None
         if match is None:
             self.notes.append("control de apuesta por pista de zona")
-        self._source.click(*(match.center if match else center(control.hint)))
-        return match is not None
+            self._source.click(*center(control.hint))
+            return False, None
+        self._source.click(*match.center)
+        return True, match.center
 
     def _read_bet_change(self, previous: Reading) -> Reading:
         """Apuesta tras pulsar. Se lee dos veces si no cambió, por si el juego aún no la había repintado."""
-        after = self.read_bet()
-        return self.read_bet() if after.money == previous.money else after
+        after = self._quick_bet()
+        return self._quick_bet() if after.money == previous.money else after
+
+    def _quick_bet(self) -> Reading:
+        """Apuesta leyendo solo la zona del perfil, ampliada. Si no es fiable, lectura completa."""
+        rect = self.profile.hint_zones.get("bet")
+        frame = self._source.grab()
+        if rect is None:
+            return self.read_bet(frame)
+        height, width = frame.shape[:2]
+        aliases = self.profile.label_aliases("bet", self._lang)
+        anchored = self._find_in_zone(frame, aliases, to_pixels(rect, width, height), quiet=True)
+        money = self._money.parse(anchored.value_text) if anchored else None
+        if anchored is None or money is None or anchored.confidence < _TRUSTED_SCORE:
+            return self.read_bet(frame)
+        return Reading(
+            raw_text=anchored.value_text,
+            money=money,
+            currency_seen=self._money.currency_seen(anchored.value_text),
+            confidence=min(1.0, anchored.confidence),
+        )
+
+    def _confirm_bet(self, quick: Reading) -> Reading:
+        """Lectura completa (con evidencia) de la apuesta final; tiene que coincidir con la rápida."""
+        final = self.read_bet()
+        if final.ok and final.money != quick.money:
+            return _doubtful(final, f"la apuesta final no coincide: zona {quick.raw_text} / pantalla {final.raw_text}")
+        return final
 
     # ---------- inicio ----------
 
