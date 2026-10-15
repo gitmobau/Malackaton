@@ -90,6 +90,12 @@ Las capturas están en `docs/recon/`.
 - `robots.txt`: `Crawl-delay: 2`.
 - Supuesto: la estructura de .com y .pe será parecida porque es la misma plataforma, pero **está por verificar**.
 
+### Hallazgos con la cuenta real (15-oct, 14:08)
+- Login manual con la cuenta con saldo: correcto, saldo 100,00 € (EUR).
+- El primer login automatizado (13:57) recibió "Actualiza la página y vuelve a intentarlo en breve. La resolución puede demorar hasta 10 minutos." No hubo captcha. Causa probable: detección de automatización o bloqueo temporal (pregunta 18b).
+- **Diálogo de límites de sesión de la DGOJ** antes de abrir el juego: tiempo de juego (15 min a 5 h) y límite de pérdidas (del 25 al 100 %), con un botón "Iniciar sesión". Mientras dura la sesión no se puede crear otra. `open_game` lo gestiona con valores configurables por mercado (`session_limits`), y su captura va en las evidencias (pregunta 18c).
+- URL de juego: `/casino/<categoría>/<slug>?gameAction=play`.
+
 ## 3. Arquitectura propuesta
 
 ```
