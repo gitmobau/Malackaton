@@ -96,6 +96,26 @@ jobs:
           Remove-Item -Recurse -Force outputs -ErrorAction SilentlyContinue
           exit 0
 
+      - name: Comprobar el login asistido (Chrome con sesión abierta)
+        # Login asistido autorizado por el mentor: una persona inicia sesión en Chrome (perfiles en
+        # D:\MAIKI\Malackathon\.chrome-profiles) y el comprobador se conecta por CDP. El runner debe
+        # correr con el mismo usuario de Windows que ese Chrome para llegar a 127.0.0.1.
+        if: env.ENABLED == 'true'
+        shell: powershell
+        env:
+          CDP_PORTS: ${{ vars.CDP_PORTS || '9222,9223' }}
+        run: |
+          $fallan = @()
+          foreach ($p in $env:CDP_PORTS.Split(',')) {
+            try { Invoke-RestMethod -Uri "http://127.0.0.1:$($p.Trim())/json/version" -TimeoutSec 5 | Out-Null }
+            catch { $fallan += $p.Trim() }
+          }
+          if ($fallan.Count -gt 0) {
+            Write-Output "::error::Chrome no responde en los puertos CDP $($fallan -join ', '): repetir login asistido."
+            exit 1
+          }
+          Write-Output "Login asistido disponible en los puertos $env:CDP_PORTS."
+
       - name: Ejecutar escenarios
         if: env.ENABLED == 'true'
         shell: powershell

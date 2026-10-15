@@ -84,6 +84,7 @@ Workflow `.github/workflows/validacion.yml` ("Validación de juegos"):
 - **Tras un reinicio o si se cierra su ventana, el runner se cae.** Para volver a arrancarlo:
   `start "runner" /min cmd /c "D:\DevTools\actions-runner\run.cmd"`.
   **Arranca solo al iniciar sesión**: la última línea de `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\unidad-D.cmd` (después del `subst`, que crea la unidad D:) lanza `run.cmd` minimizado.
+- **Login asistido** (autorizado por el mentor): antes de lanzar el job real, una persona inicia sesión en Chrome (perfiles `es-main` y `es-empty` en `D:\MAIKI\Malackathon\.chrome-profiles`, puertos CDP 9222 y 9223) y el comprobador se conecta por CDP. El workflow comprueba que los puertos responden y, si no, falla con "repetir login asistido". Los puertos se cambian con la variable del repo `CDP_PORTS`. El runner corre con el mismo usuario de Windows que ese Chrome.
 - **Lanzar la validación (demo)**, con `gh` y la sesión iniciada:
   ```bash
   gh workflow run "Validación de juegos" -R gitmobau/Malackaton --ref main -f markets=es
