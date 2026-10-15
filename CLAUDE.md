@@ -60,7 +60,8 @@ Usa los agentes de ECC cuando ahorren tiempo (`planner`, `code-reviewer`, `pytho
 ## Seguridad (innegociable)
 - **Nunca credenciales ni secretos** en código, logs, capturas, vídeos, trazas, informe ni commits. En local van en `.env` (ya está en `.gitignore`) y en CI, en GitHub Secrets. Tampoco datos privados que nos den los organizadores.
 - La traza de Playwright graba lo que se escribe: **se pausa durante el login** y los campos se tapan en capturas y vídeo.
-- Apuesta: por defecto **la que muestre el juego** (`BET_STRATEGY=current`); no hace falta bajar a la mínima, porque los mentores recargan el saldo de las cuentas de prueba. Si la apuesta supera el saldo, se baja a la mínima. Solo cuentas de prueba de Betsson, nunca personales.
+- Apuesta: por defecto se cambia **una vez** (`BET_STRATEGY=step`) y se juega con la nueva; si no cabe en el saldo, se baja a la mínima. También `min` y `current`. No hace falta la mínima: los mentores recargan el saldo de las cuentas de prueba.
+- **Privacidad de las capturas**: el repo y los informes son PÚBLICOS. Ninguna captura puede mostrar el nombre del titular ni ningún dato del cliente (desplegable de "Saldo", cabecera, perfil). Se recorta o se tapa antes de guardarla. Solo cuentas de prueba de Betsson, nunca personales.
 - Sin VPN salvo que la organización lo pida. No intentar saltarse captchas. Ritmo humano: al menos 2 s entre cargas.
 
 ## Áreas y propiedad (no tocar fuera de tu área sin PR)
