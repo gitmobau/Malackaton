@@ -24,6 +24,8 @@ Desde una terminal del portátil, con `gh` y la sesión iniciada (cuenta del equ
 ```bash
 # 1) Lanzar la validación real en el mercado español
 gh workflow run "Validación de juegos" -R gitmobau/Malackaton --ref main -f markets=es
+#    Solo un escenario: añadir -f scenarios=s1 (tirada completa) o -f scenarios=s2 (saldo insuficiente).
+#    Por defecto, s1,s2. Solo se exige el Chrome del escenario pedido (S1 → 9222, S2 → 9223).
 
 # 2) Seguirla en directo (coge la última ejecución del workflow)
 RUN=$(gh run list -R gitmobau/Malackaton -w "Validación de juegos" -L 1 --json databaseId -q '.[0].databaseId')
@@ -44,7 +46,7 @@ Si Pages llega a estar activo (`PAGES_ENABLED=true`), el informe también está 
 
 - [ ] **Runner online**: `gh api repos/gitmobau/Malackaton/actions/runners --jq '.runners[] | [.name,.status] | @tsv'` → `portatil-alejandro online`. Si no: `start "runner" /min cmd /c "D:\DevTools\actions-runner\run.cmd"`.
 - [ ] **Saldo de la cuenta** de prueba suficiente para S1 (apuesta mínima) y la cuenta de S2 **sin saldo**. Si no, pedir recarga a los mentores.
-- [ ] **Login asistido hecho** (10 min antes): una persona inicia sesión en los Chrome de los perfiles `es-main` (puerto 9222) y `es-empty` (puerto 9223) de `D:\MAIKI\Malackathon\.chrome-profiles`, **sin que se vea en el proyector**. Comprobar que responden: `curl -s http://127.0.0.1:9222/json/version` y lo mismo con 9223. Si la sesión caduca, el workflow falla con "repetir login asistido".
+- [ ] **Login asistido hecho JUSTO antes de lanzar**: las sesiones de Betsson caducan en menos de 1 h, así que no se hace al preparar la sala sino en el último minuto antes del `gh workflow run`. Una persona inicia sesión en los Chrome de los perfiles `es-main` (puerto 9222) y `es-empty` (puerto 9223) de `D:\MAIKI\Malackathon\.chrome-profiles`, **sin que se vea en el proyector**. Comprobar que responden: `curl -s http://127.0.0.1:9222/json/version` y lo mismo con 9223. Si la sesión caduca, el workflow falla con "repetir login asistido".
 - [ ] **Chrome** instalado y actualizado. Cerrar las demás ventanas de Chrome de A y B en el portátil del runner, pero **no** las dos del login asistido.
 - [ ] **Red**: el lobby de betsson.es carga desde el portátil, sin VPN y sin que salte el WAF.
 - [ ] **Última ejecución buena** descargada en `outputs/demo/` (plan B) y **vídeo de respaldo** abierto en otra ventana.
