@@ -50,8 +50,8 @@ ACCOUNTS = {Scenario.S1: "funded", Scenario.S2: "empty"}
 # S2_ACCOUNT=funded y S2_BET_TARGET=above_balance (apuesta por encima del saldo visible).
 S2_ACCOUNT = os.getenv("S2_ACCOUNT", "empty").strip().lower()
 S2_BET_TARGET = os.getenv("S2_BET_TARGET", "min").strip().lower()
-# Estrategia de apuesta: "min" (por defecto, CLAUDE.md: apuesta mínima siempre) o "current"
-# (juega con la apuesta visible; más rápido, solo si el equipo lo autoriza).
+# Estrategia de apuesta (BET_STRATEGY): "step" por defecto (cambia la apuesta una vez y juega
+# con la nueva), "min" (baja a la mínima) o "current" (juega con la visible).
 BET_STRATEGY = os.getenv("BET_STRATEGY", "").strip().lower() or None
 # Huellas de referencia por juego: en el runner propio persisten entre ejecuciones.
 BASELINES = BaselineStore(Path(os.getenv("BASELINE_DIR", "outputs/baselines")) / "game")
