@@ -29,6 +29,7 @@ from betsson.core import (
     GameOpenError,
     MarketContext,
     Message,
+    Notice,
     ProviderRegistry,
     ProviderUIChanged,
     RunResult,
@@ -147,12 +148,19 @@ _READINGS = (
 )
 
 
+def _notice_reading(notice: Any) -> ScreenReading:
+    """Aviso de Betsson: Notice(text, evidence_path) o, durante la transición, un str."""
+    if isinstance(notice, Notice):
+        return ScreenReading(name="Aviso de Betsson", source="betsson", raw_text=notice.text,
+                             evidence=notice.evidence_path)
+    return ScreenReading(name="Aviso de Betsson", source="betsson", raw_text=str(notice))
+
+
 def _screen_readings(obs: dict[str, Any], notices: tuple[Any, ...] = ()) -> tuple[ScreenReading, ...]:
     out = []
     for key, name, source in _READINGS:
         if key == "bet":  # los avisos de Betsson al abrir el juego van justo antes de jugar
-            out += [ScreenReading(name="Aviso de Betsson", source="betsson", raw_text=n.text,
-                                  evidence=n.evidence_path) for n in notices]
+            out += [_notice_reading(n) for n in notices]
         item = obs.get(key)
         if item is None:
             continue
