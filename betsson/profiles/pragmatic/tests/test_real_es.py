@@ -16,6 +16,7 @@ from betsson.game.sources import FileFrameSource, read_image
 from betsson.market import load_market
 from betsson.profiles.base import ProfileSpec
 from betsson.profiles.registry import ensure_recognized, get_profile, resolve
+from betsson.vision.geometry import contains
 
 REAL = Path(__file__).resolve().parents[4] / "fixtures" / "pragmatic" / "real-es"
 # (captura, crédito, apuesta, ganancia) leídos con parse_money del mercado es
@@ -73,3 +74,41 @@ def test_s2_mensaje_real_de_fondos_insuficientes(profile: ProfileSpec) -> None:
     message = eyes.read_message(frame)
     assert message.matches_insufficient is True and message.lang_detected == "es"
     assert eyes.read_balance(frame).money.amount == Decimal("0.00")  # el saldo no cambia
+
+
+def test_s2_read_message_cierra_la_ventana_con_aceptar(profile: ProfileSpec) -> None:
+    """Tras guardar la evidencia, pulsa ACEPTAR y comprueba que el aviso desaparece (petición de C)."""
+    s2 = REAL / "s2"
+    if not (s2 / "02_mensaje_fondos_insuficientes.png").exists():
+        pytest.skip("capturas del S2 real (área A) aún no fusionadas")
+    message_frame = read_image(s2 / "02_mensaje_fondos_insuficientes.png")
+    after_frame = read_image(s2 / "01_principal_credito_0.png")  # la pantalla sin la ventana
+    source = FileFrameSource([message_frame, after_frame])
+    eyes = GameEyes(source, profile, load_market("es"))
+    message = eyes.read_message(message_frame)
+    assert message.matches_insufficient is True and message.reason is None
+    ((fx, fy),) = source.clicks
+    assert 0.40 < fx < 0.60 and 0.50 < fy < 0.66  # ACEPTAR, en el centro de la ventana
+
+
+def test_s2_si_la_ventana_no_se_cierra_queda_dicho(profile: ProfileSpec) -> None:
+    s2 = REAL / "s2"
+    if not (s2 / "02_mensaje_fondos_insuficientes.png").exists():
+        pytest.skip("capturas del S2 real (área A) aún no fusionadas")
+    message_frame = read_image(s2 / "02_mensaje_fondos_insuficientes.png")
+    eyes = GameEyes(FileFrameSource([message_frame]), profile, load_market("es"))
+    message = eyes.read_message(message_frame)
+    assert message.matches_insufficient is True and "no desapareció" in (message.reason or "")
+
+
+def test_s2_sin_texto_del_boton_usa_la_pista_del_perfil(profile: ProfileSpec) -> None:
+    """Si el OCR no lee ACEPTAR, se pulsa la pista de zona del perfil (nunca coordenadas fijas en el código)."""
+    s2 = REAL / "s2"
+    if not (s2 / "02_mensaje_fondos_insuficientes.png").exists():
+        pytest.skip("capturas del S2 real (área A) aún no fusionadas")
+    blind = profile.model_copy(update={"message_dismiss_texts": ["BOTON QUE NO EXISTE"]})
+    source = FileFrameSource([read_image(s2 / "02_mensaje_fondos_insuficientes.png"), read_image(s2 / "01_principal_credito_0.png")])
+    message = GameEyes(source, blind, load_market("es")).read_message()
+    assert message.matches_insufficient is True and message.reason is None
+    ((fx, fy),) = source.clicks
+    assert contains(blind.message_dismiss_hint, (fx, fy))

@@ -7,6 +7,7 @@ No conoce ningún proveedor: todo sale del perfil. Reglas:
 """
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 from decimal import Decimal
@@ -331,11 +332,39 @@ class GameEyes:
         langs = [self._lang] + [lang for lang in self.profile.insufficient_texts if lang != self._lang]
         for lang in langs:
             if any(normalize(t) in norm for t in self.profile.insufficient_texts.get(lang, [])):
+                # La evidencia ya está guardada: se cierra la ventana para que no tape los importes.
+                reason = self._dismiss_message(frame, boxes)
                 return Message(
                     text=text, lang_detected=lang, matches_insufficient=True,
-                    confidence=confidence, evidence_path=evidence,
+                    confidence=confidence, evidence_path=evidence, reason=reason,
                 )
         return Message(text=text, matches_insufficient=False, confidence=confidence, evidence_path=evidence)
+
+    def _dismiss_message(self, frame: np.ndarray, boxes: list[TextBox]) -> str | None:
+        """Pulsa el botón del mensaje (ACEPTAR…) y espera a VER que el aviso desaparece.
+
+        Devuelve None si se cerró, o el motivo si no (queda en notes y en Message.reason).
+        """
+        if not self.profile.message_dismiss_texts:
+            return None
+        button = next((b for t in self.profile.message_dismiss_texts if (b := _find_word(boxes, t))), None)
+        height, width = frame.shape[:2]
+        if button is not None:
+            self._source.click(button.cx / width, button.cy / height)
+        elif self.profile.message_dismiss_hint is not None:
+            self.notes.append("botón del mensaje no leído por OCR: se pulsó la pista del perfil")
+            self._source.click(*center(self.profile.message_dismiss_hint))
+        else:
+            self.notes.append("mensaje visible: no se encontró su botón para cerrarlo")
+            return "mensaje visible: no se encontró su botón para cerrarlo"
+        warning = [normalize(t) for texts in self.profile.insufficient_texts.values() for t in texts]
+        start = time.monotonic()
+        while time.monotonic() - start < self.profile.spin_end.start_timeout_s:
+            now = normalize(full_text(read_text(self._source.grab())))
+            if not any(w in now for w in warning):
+                return None
+        self.notes.append("mensaje visible: se pulsó su botón pero no desapareció")
+        return "mensaje visible: se pulsó su botón pero no desapareció"
 
     # ---------- utilidades ----------
 
@@ -381,6 +410,12 @@ def _reconcile(first: _Read, second: _Read | None) -> tuple[str, Money | None, s
     if first.money is not None or second.score >= _TRUSTED_SCORE:
         return second.text, second.money, None
     return first.text, None, f"relectura poco fiable '{second.text}' (OCR {second.score:.2f})"
+
+
+def _find_word(boxes: list[TextBox], text: str) -> TextBox | None:
+    """Caja cuyo texto es exactamente esa palabra o frase ('OK' no casa con 'BOOK OF DEAD')."""
+    wanted = normalize(text)
+    return next((b for b in boxes if re.fullmatch(rf"\W*{re.escape(wanted)}\W*", b.norm)), None)
 
 
 def _find_box(boxes: list[TextBox], text: str) -> TextBox | None:

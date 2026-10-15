@@ -41,6 +41,7 @@ PROFILE = ProfileSpec(
     spin_templates=[ASSETS / "spin.png"],
     spin_hint=Rect(x=0.66, y=0.86, w=0.10, h=0.10),  # botón GIRAR, abajo a la derecha de los rodillos
     spin_key="Space",
+    message_dismiss_texts=["ACEPTAR", "ACCEPT", "OK"],
     insufficient_texts={
         "es": ["SALDO INSUFICIENTE", "FONDOS INSUFICIENTES", "NO TIENE SUFICIENTE"],
         "en": ["INSUFFICIENT FUNDS", "NOT ENOUGH FUNDS", "INSUFFICIENT BALANCE"],
