@@ -7,6 +7,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from betsson.checks.common import LOGIN_ASSISTED_WARNING
 from betsson.core import CheckId, RunResult
+from betsson.report.video import REPLAY_FILE
 
 TEMPLATES = Path(__file__).parent / "templates"
 REPORT_FILE = "report.html"
@@ -26,7 +27,8 @@ _env.globals["LOGIN_ASSISTED_WARNING"] = LOGIN_ASSISTED_WARNING
 def render_run(run: RunResult, out_dir: Path) -> Path:
     """report.html de un escenario. Las evidencias se enlazan relativas a out_dir."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    html = _env.get_template("run.html.j2").render(run=run)
+    replay = REPLAY_FILE if (out_dir / REPLAY_FILE).exists() else None
+    html = _env.get_template("run.html.j2").render(run=run, replay=replay)
     path = out_dir / REPORT_FILE
     path.write_text(html, encoding="utf-8")
     return path

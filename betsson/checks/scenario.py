@@ -38,6 +38,7 @@ from betsson.core import (
 )
 from betsson.report.fingerprint import BaselineStore, check_drift, take
 from betsson.report.html import render_run
+from betsson.report.video import make_replay
 
 log = logging.getLogger(__name__)
 
@@ -348,6 +349,10 @@ def run_scenario(
         run = _with_drift(run, baselines, extra, out_dir)
     run = _with_relative_evidence(run, out_dir)
     run.write_json(out_dir / RESULTS_FILE)
+    try:
+        make_replay(out_dir)  # GIF con los fotogramas del canvas, si los hay
+    except Exception:  # la repetición es un extra: nunca tumba el informe
+        log.exception("no se pudo montar la repetición de %s/%s", market.id, scenario.value)
     try:
         render_run(run, out_dir)
     except Exception:  # results.json ya está escrito: el informe no debe ocultarlo

@@ -26,6 +26,12 @@
 {% endif %}
 {% endfor %}
 
+{% if replay %}
+<h2>Repetición del escenario</h2>
+<p class="meta">Fotogramas del canvas del juego en el orden en que los capturó el comprobador (sin la web de Betsson ni datos de la cuenta).</p>
+<img class="replay" src="{{ replay|urlencode }}" alt="Repetición del escenario con los fotogramas del canvas">
+{% endif %}
+
 {% if run.readings %}
 <h2>Lo que vio el comprobador</h2>
 <p class="meta">Cada importe se lee de la pantalla como lo vería un jugador (OCR sobre el canvas o el saldo de la web). La red y el monedero solo confirman.</p>

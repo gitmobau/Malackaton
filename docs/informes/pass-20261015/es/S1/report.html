@@ -42,6 +42,7 @@
   .strip { display:flex; gap:6px; margin-top:10px; } .strip img { width:23%; height:56px; object-fit:cover; border-radius:4px; background:#111; }
   .matrix td, .matrix th { text-align:center; } .matrix td:first-child, .matrix th:first-child { text-align:left; }
   .notice.info { border-color:#1a5fb4; }
+  .replay { display:block; max-width:100%; width:480px; border-radius:8px; border:1px solid var(--line); background:#111; }
 </style>
 </head>
 <body><main>
@@ -58,6 +59,10 @@
 
 <div class="notice info"><strong>Login asistido por una persona</strong> (autorizado por los mentores): una persona inició la sesión en Betsson; todo lo demás —abrir el juego, leer la pantalla, girar y verificar— lo hizo el comprobador solo.</div>
 <div class="notice"><strong>Aviso:</strong> huella de referencia del juego creada en esta ejecución</div>
+
+<h2>Repetición del escenario</h2>
+<p class="meta">Fotogramas del canvas del juego en el orden en que los capturó el comprobador (sin la web de Betsson ni datos de la cuenta).</p>
+<img class="replay" src="replay.gif" alt="Repetición del escenario con los fotogramas del canvas">
 
 <h2>Lo que vio el comprobador</h2>
 <p class="meta">Cada importe se lee de la pantalla como lo vería un jugador (OCR sobre el canvas o el saldo de la web). La red y el monedero solo confirman.</p>
