@@ -23,8 +23,19 @@ streamlit
 fastapi
 uvicorn
 
-# Automatización de navegador (Betsson)
+# Automatización de navegador y tests (Betsson)
 playwright
+pytest
+pytest-playwright
+
+# Ojos sobre el juego: OCR, imagen y hash perceptual (Betsson)
+opencv-python
+rapidocr-onnxruntime
+imagehash
+
+# Contratos, configuración e informe (Betsson)
+pydantic
+jinja2
 
 # LLM para veredictos o análisis con IA (requiere API key en .env)
 anthropic
