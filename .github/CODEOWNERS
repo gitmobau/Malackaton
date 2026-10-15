@@ -1,0 +1,23 @@
+# Dueños por área (docs/PLAN_24H.md). Sustituir cada @TODO por el usuario de GitHub.
+# Mientras siga @TODO, la línea no asigna revisor.
+# A, Maiki: web de Betsson, mercados y docs
+# /betsson/site/       @TODO-maiki
+# /betsson/market/     @TODO-maiki
+# /config/markets/     @TODO-maiki
+# /docs/               @TODO-maiki
+# B, Alejandro: ojos sobre el juego y proveedores
+# /betsson/game/       @TODO-alejandro
+# /betsson/vision/     @TODO-alejandro
+# /betsson/profiles/   @TODO-alejandro
+# /fixtures/           @TODO-alejandro
+# C, Migue: contratos, comprobaciones, informe y tests
+# /betsson/core/       @TODO-migue
+# /betsson/checks/     @TODO-migue
+# /betsson/report/     @TODO-migue
+# /tests/              @TODO-migue
+# D, Guilli: CI e infraestructura
+# /.github/            @TODO-guilli
+# /requirements.txt    @TODO-guilli
+# /pytest.ini          @TODO-guilli
+# /conftest.py         @TODO-guilli
+# /setup-portatil.ps1  @TODO-guilli
