@@ -98,5 +98,10 @@ class Market(_Strict):
         return self
 
     @property
+    def currency_code(self) -> str:
+        """ISO 4217 (lo pide el Protocol MarketContext de core)."""
+        return self.currency.code
+
+    @property
     def origin(self) -> str:
         return str(self.base_url).rstrip("/")

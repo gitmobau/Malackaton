@@ -32,7 +32,11 @@ Rama `feat/A-betsson-web`, con `origin/main` (esqueleto del PR #1) ya fusionado.
 
 ## Siguientes pasos, en orden
 
-### 1. Arreglar `parse_money` (HIGH: hoy puede devolver importes erróneos sin avisar)
+### 1. ✅ HECHO (15-oct, portátil de Alejandro): arreglar `parse_money` (HIGH)
+
+H1–H4 corregidos, con un test de regresión cada uno (57 tests de A en verde). De paso quedó hecho lo de moneda del paso 2: `require_currency`, `detect_currency` (alias con límites de palabra, monedas sacadas de todos los mercados configurados), `Money.currency` siempre ISO (sin `raw`) y `Market.currency_code`. Decisión: el formato contrario sigue aceptándose solo cuando no es ambiguo ("€1,234.56" o "€12.34" en es).
+
+Detalle original, como referencia:
 
 Todos en `betsson/market/money.py`. Añadir un test por cada caso.
 
@@ -57,6 +61,8 @@ Todos en `betsson/market/money.py`. Añadir un test por cada caso.
   - Arreglo: buscar el alias con límites de palabra, `re.search(rf"(?<!\w){re.escape(sym)}(?!\w)", text, re.I)`. Para alias con letras, exigir además que estén pegados al número.
 
 ### 2. Contrato con C (Migue lo cerró por mensaje; su PR de contratos trae `betsson/core/`)
+
+Pendiente: `Reading`, `login() -> bool`, `screenshot()`, `play_mode` y `capture()`, y cambiar a `betsson.core.money.Money` cuando su PR esté en main. Lo de moneda ya está hecho (paso 1).
 
 - `parse_money(texto, mercado, require_currency=False) -> betsson.core.money.Money`, con `currency` **obligatoria** (ISO):
   - Si el texto trae el símbolo de OTRA moneda conocida, se devuelve esa moneda (por ejemplo, "€ 12.50" en Perú da EUR). Las monedas conocidas salen de **todos** los `config/markets/*.json`, sin tabla fija en el código.

@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 from playwright.sync_api import ElementHandle, Frame, Locator, Page, Response
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from betsson.market.money import Money, MoneyParseError, parse_money
+from betsson.market.money import Money, MoneyParseError, detect_currency, parse_money
 from betsson.market.schema import Market
 from betsson.site import selectors as sel
 from betsson.site.credentials import Credentials, credentials_for
@@ -180,11 +180,14 @@ class BetssonSite:
                 text = loc.nth(i).inner_text().strip()
                 if not text:
                     continue
+                # Saldo = importe legible CON la moneda del mercado visible (no la de por defecto).
+                if detect_currency(text, self.market) != self.market.currency_code:
+                    continue
                 try:
-                    if parse_money(text, self.market).currency == self.market.currency.code:
-                        return loc.nth(i)
+                    parse_money(text, self.market, require_currency=True)
                 except MoneyParseError:
                     continue
+                return loc.nth(i)
         return None
 
     def read_balance(self, timeout_ms: int = DEFAULT_TIMEOUT_MS) -> Money:
