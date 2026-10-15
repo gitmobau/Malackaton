@@ -58,11 +58,11 @@ def test_new_game_version_path_is_a_change() -> None:
     assert any("ruta del juego" in r for r in reasons)
 
 
-def _run(out: Path, store: BaselineStore, frame: np.ndarray, run_id: str, betsson_after: str = "99.80"):
+def _run(out: Path, store: BaselineStore, frame: np.ndarray, run_id: str, betsson_after: str = "99.90"):
     registry = FakeRegistry()
     handle = FakeGameHandle(iframe_url=URL, frame=frame)
     site = FakeBetssonSite([reading("100.00"), reading(betsson_after)], out, handle=handle)
-    eyes = FakeGameEyes(registry.profile, out, [reading("100.00"), reading("99.80")], reading("0.20"))
+    eyes = FakeGameEyes(registry.profile, out, [reading("100.00"), reading("99.90")], reading("0.10"))
     return run_scenario(market=FakeMarket(), scenario=Scenario.S1, site=site, registry=registry,
                         eyes_factory=factory(eyes), slug="fake-slot", out_dir=out, run_id=run_id,
                         baselines=store)

@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORE_DIRS = ["betsson/core", "betsson/checks", "betsson/report"]
 
 
-def run_s1(out: Path, *, betsson=("100.00", "99.80"), game=("100.00", "99.80"), bet="0.20", win="0.00",
+def run_s1(out: Path, *, betsson=("100.00", "99.90"), game=("100.00", "99.90"), bet="0.10", win="0.00",
            market: FakeMarket | None = None, site_kw: dict | None = None, eyes_kw: dict | None = None,
            registry: FakeRegistry | None = None) -> RunResult:
     market = market or FakeMarket()
@@ -61,7 +61,7 @@ def test_s1_losing_spin_passes_and_writes_artifacts(tmp_path: Path) -> None:
 
 
 def test_s1_winning_spin_passes(tmp_path: Path) -> None:
-    run = run_s1(tmp_path, betsson=("100.00", "101.30"), game=("100.00", "101.30"), win="1.50")
+    run = run_s1(tmp_path, betsson=("100.00", "101.40"), game=("100.00", "101.40"), win="1.50")
     assert run.outcome == "PASS"
 
 
@@ -352,3 +352,73 @@ def test_real_test_never_records_network_trace_har_or_video() -> None:
     code = "\n".join(line for line in source.splitlines() if not line.lstrip().startswith(("#", "-", "*")))
     for banned in ("tracing.start", "start_chunk", "record_har", "record_video", "ChunkedTrace("):
         assert banned not in code, f"{banned} en test_real.py"
+
+
+def test_index_cover_has_matrix_tiles_and_flags(tmp_path: Path) -> None:
+    run_s1(tmp_path / "es" / "S1", site_kw={"login_assisted": True})
+    run_s2(tmp_path / "es" / "S2", message=Message(reason="OCR sin texto"))
+    html = render_index(tmp_path).read_text(encoding="utf-8")
+    assert "Comprobaciones por escenario" in html
+    assert "betsson_balance_reconciles" in html and "insufficient_message_language" in html
+    assert "Login asistido por una persona" in html
+    assert "PASS: 1" in html and "INCONCLUSIVE: 1" in html
+    assert 'class="strip"' in html and "S1/game_bet.png" in html
+
+
+def test_index_counts_unreadable_results_as_fail(tmp_path: Path) -> None:
+    run_s1(tmp_path / "es" / "S1")
+    bad = tmp_path / "es" / "S2"
+    bad.mkdir(parents=True)
+    (bad / "results.json").write_text("roto", encoding="utf-8")
+    html = render_index(tmp_path).read_text(encoding="utf-8")
+    assert "FAIL: 1" in html and "PASS: 1" in html
+
+
+def test_index_s2_strip_shows_message_first(tmp_path: Path) -> None:
+    run_s2(tmp_path / "es" / "S2")
+    html = render_index(tmp_path).read_text(encoding="utf-8")
+    strip = html.split('class="strip"', 1)[1]
+    assert strip.index("S2/message.png") < strip.index("S2/game_bet.png")
+
+
+# --- Datos de la ejecución real (betsson.es, 15-oct) ------------------------------
+
+
+def test_s1_real_numbers_from_betsson_es(tmp_path: Path) -> None:
+    """100,00 − 0,10 + 0 = 99,90 € en el juego y en Betsson, con la apuesta mínima."""
+    run = run_s1(tmp_path, betsson=("100.00", "99.90"), game=("100.00", "99.90"), bet="0.10", win="0.00")
+    assert run.outcome == "PASS", [r.reason for r in run.results if r.status == "FAIL"]
+
+
+def test_s1_never_spins_above_min_bet(tmp_path: Path) -> None:
+    run = run_s1(tmp_path, bet="2.00")
+    checks = by_id(run)
+    assert checks[CheckId.WAGER_READ].failure_kind is FailureKind.INCONCLUSIVE
+    assert "no es la mínima" in checks[CheckId.WAGER_READ].reason
+    assert checks[CheckId.SPIN_STARTED].reason.endswith("no se llegó a intentar la tirada")
+    assert run.outcome != "PASS"
+
+
+def test_s1_unreadable_bet_does_not_spin(tmp_path: Path) -> None:
+    run = run_s1(tmp_path, bet=None)
+    assert by_id(run)[CheckId.SPIN_STARTED].failure_kind is FailureKind.INCONCLUSIVE
+    assert "no se llegó a intentar" in by_id(run)[CheckId.SPIN_STARTED].reason
+
+
+def test_s2_real_insufficient_funds_dialog(tmp_path: Path) -> None:
+    msg = Message(text="Fondos insuficientes para realizar esta apuesta. Haga un depósito en su cuenta o "
+                       "reduzca el nivel de la apuesta.", lang_detected="es", matches_insufficient=True,
+                  confidence=0.97)
+    run = run_s2(tmp_path, betsson=("0.00", "0.00"), game=("0.00", "0.00"), message=msg)
+    assert run.outcome == "PASS", [r.reason for r in run.results if r.status == "FAIL"]
+
+
+def test_betsson_notices_appear_in_readings(tmp_path: Path) -> None:
+    from betsson.core import Notice
+
+    shot = tmp_path / "dgoj_no_balance.png"
+    shot.write_bytes(b"png")
+    handle = FakeGameHandle(notices=(Notice(text="No dispones de saldo…", evidence_path=shot),))
+    run = run_s1(tmp_path, site_kw={"handle": handle})
+    notice = next(r for r in run.readings if r.name == "Aviso de Betsson")
+    assert notice.raw_text == "No dispones de saldo…" and notice.evidence == Path("dgoj_no_balance.png")
