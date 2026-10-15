@@ -58,6 +58,8 @@ def _png(path: Path) -> Path:
 class FakeGameHandle:
     iframe_url: str = "https://games.example.test/fake-provider/slot?mode=real"
     play_mode: PlayMode = "real"
+    play_mode_reason: str | None = "Betsson pidió los límites de sesión del regulador"
+    evidence: tuple[Path, ...] = ()
 
     def capture(self) -> np.ndarray:
         return np.zeros((36, 64, 3), dtype=np.uint8)

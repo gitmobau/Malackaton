@@ -15,6 +15,8 @@ class S2Observation:
 
     logged_in: bool | None = None
     play_mode: PlayMode | None = None
+    play_mode_reason: str | None = None
+    open_evidence: tuple[Path, ...] = ()  # pasos del jugador al abrir el juego
     open_error: str | None = None
     betsson_before: Reading | None = None
     game_before: Reading | None = None
@@ -81,7 +83,7 @@ def evaluate_s2(obs: S2Observation, market: MarketContext) -> list[CheckResult]:
     tol = market.money_tolerance
     results = [
         login_check(obs.logged_in),
-        real_play_check(obs.play_mode, obs.open_error),
+        real_play_check(obs.play_mode, obs.open_error, obs.play_mode_reason, obs.open_evidence),
         currency_check([obs.game_before, obs.bet, obs.game_after], [obs.betsson_before, obs.betsson_after], market),
         _spin_rejected(obs),
         _message_language(obs, market),

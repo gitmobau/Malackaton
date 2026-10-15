@@ -290,3 +290,12 @@ def test_broken_results_json_does_not_break_index(tmp_path: Path) -> None:
     (bad / "results.json").write_text("{no es json", encoding="utf-8")
     html = render_index(tmp_path).read_text(encoding="utf-8")
     assert "ERROR" in html and "S1/report.html" in html
+
+
+def test_real_play_shows_player_steps_from_betsson(tmp_path: Path) -> None:
+    dialog = tmp_path / "session_limits_dialog.png"
+    dialog.write_bytes(b"png")
+    run = run_s1(tmp_path, site_kw={"handle": FakeGameHandle(evidence=(dialog,))})
+    r = by_id(run)[CheckId.REAL_PLAY]
+    assert r.status == "PASS" and "límites de sesión" in r.reason
+    assert r.evidence == (Path("session_limits_dialog.png"),)

@@ -64,6 +64,8 @@ def _prepare(
         obs["open_error"] = safe_error(str(exc))
         return None
     obs["play_mode"] = handle.play_mode
+    obs["play_mode_reason"] = safe_error(handle.play_mode_reason) if handle.play_mode_reason else None
+    obs["open_evidence"] = tuple(handle.evidence)
     profile = registry.resolve(handle.iframe_url, handle.capture())
     extra["provider"] = profile.name
     registry.ensure_recognized(profile, handle.capture())  # ProviderUIChanged sube a run_scenario

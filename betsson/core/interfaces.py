@@ -183,6 +183,8 @@ class GameHandle(Protocol):
 
     iframe_url: str
     play_mode: PlayMode  # leído de la web de Betsson o de la pantalla, nunca supuesto
+    play_mode_reason: str | None  # por qué se decidió play_mode (p. ej. "Betsson pidió los límites de sesión")
+    evidence: tuple[Path, ...]  # pasos del jugador al abrir el juego (diálogo de límites, juego abierto…)
 
     def capture(self) -> np.ndarray:
         """Captura actual del canvas del juego (RGB)."""

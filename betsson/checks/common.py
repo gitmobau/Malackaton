@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from pathlib import Path
 
 from betsson.core import CheckId, CheckResult, FailureKind, MarketContext, PlayMode, Reading
 
@@ -18,15 +19,19 @@ def login_check(logged_in: bool | None) -> CheckResult:
     return CheckResult.failed(CheckId.LOGIN_OK, "no se pudo iniciar sesión")
 
 
-def real_play_check(play_mode: PlayMode | None, open_error: str | None = None) -> CheckResult:
+def real_play_check(play_mode: PlayMode | None, open_error: str | None = None, why: str | None = None,
+                    evidence: tuple[Path, ...] = ()) -> CheckResult:
     cid = CheckId.REAL_PLAY
+    suffix = f" ({why})" if why else ""
     if open_error:
-        return CheckResult.failed(cid, f"no se pudo abrir el juego: {open_error}")
+        return CheckResult.failed(cid, f"no se pudo abrir el juego: {open_error}", evidence=evidence)
     if play_mode == "real":
-        return CheckResult.passed(cid, "juego abierto en Real Play", observed="real")
+        return CheckResult.passed(cid, f"juego abierto en Real Play{suffix}", observed="real", evidence=evidence)
     if play_mode == "demo":
-        return CheckResult.failed(cid, "el juego se abrió en modo demo", expected="real", observed="demo")
-    return CheckResult.inconclusive(cid, "no se pudo confirmar el modo de juego", observed=str(play_mode))
+        return CheckResult.failed(cid, f"el juego se abrió en modo demo{suffix}", expected="real", observed="demo",
+                                  evidence=evidence)
+    return CheckResult.inconclusive(cid, f"no se pudo confirmar el modo de juego{suffix}", observed=str(play_mode),
+                                    evidence=evidence)
 
 
 def positive_read_check(check_id: CheckId, reading: Reading | None, what: str) -> CheckResult:
