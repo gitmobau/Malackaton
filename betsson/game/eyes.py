@@ -38,6 +38,9 @@ _DEFAULT_EVIDENCE_DIR = Path("outputs") / "evidence" / "game"
 
 
 class GameEyes:
+    # Objetivos que set_bet sabe cumplir (run_scenario solo pide los que aparecen aquí).
+    bet_targets: tuple[str, ...] = ("min", "above_balance", "one_step")
+
     def __init__(
         self,
         source: FrameSource,
@@ -186,11 +189,18 @@ class GameEyes:
 
     # ---------- apuesta ----------
 
-    def set_bet(self, target: BetTarget) -> Reading:
-        """Pulsa - hasta la apuesta mínima ("min") o + hasta superar el saldo ("above_balance").
+    def set_bet(self, target: BetTarget | str) -> Reading:
+        """Ajusta la apuesta y devuelve la apuesta visible al terminar.
 
-        Devuelve la apuesta visible al terminar. La apuesta "mínima" es la que ya no baja al pulsar -.
+        - "min": pulsa - hasta que ya no baja.
+        - "above_balance": pulsa + hasta superar el saldo.
+        - "one_step": cambia la apuesta UNA vez (- y, si ya está en la mínima, +).
+        Un objetivo desconocido no pulsa nada: no concluyente.
         """
+        if target not in self.bet_targets:
+            return Reading(reason=f"objetivo de apuesta desconocido '{target}': no se pulsa nada")
+        if target == "one_step":
+            return self._bet_one_step()
         control = self.profile.bet_down if target == "min" else self.profile.bet_up
         if control is None:
             return Reading(reason=f"el perfil '{self.profile.name}' no tiene control para la apuesta '{target}'")
@@ -220,6 +230,28 @@ class GameEyes:
         if going_down:
             return self._confirm_bet(current)
         return _doubtful(current, f"la apuesta máxima visible ({current.raw_text}) no supera el saldo")
+
+    def _bet_one_step(self) -> Reading:
+        """Un solo cambio de apuesta: - una vez; si no cambia (ya es la mínima), + una vez.
+
+        Solo vale si se VE que la apuesta cambió en el sentido de la pulsación; si no, no concluyente.
+        """
+        before = self._quick_bet()
+        if not before.ok:
+            return before
+        for control, going_down in ((self.profile.bet_down, True), (self.profile.bet_up, False)):
+            if control is None:
+                continue
+            self._press(control)
+            after = self._read_bet_change(before)
+            if not after.ok:
+                return after
+            if after.money == before.money:
+                continue  # este control no la movió (tope): se prueba el otro
+            if (after.money.amount < before.money.amount) != going_down:
+                return _doubtful(after, f"la apuesta cambió en sentido contrario ({before.raw_text} -> {after.raw_text})")
+            return self._confirm_bet(after)
+        return _doubtful(before, "ninguna pulsación de -/+ cambió la apuesta visible")
 
     def _press(
         self, control: Control, position: tuple[float, float] | None = None
