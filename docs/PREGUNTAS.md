@@ -26,6 +26,9 @@
 | 12 | ¿Hay algún formato de informe preferido? | |
 | 13 | ¿Hay límite de ejecuciones o de ritmo para no disparar el antibot? | |
 
+| 18b | El login automatizado (Chrome visible, ritmo humano) recibe "Actualiza la página y vuelve a intentarlo en breve…"; el login manual con la misma cuenta funciona. ¿Las cuentas de prueba tienen lista blanca para automatización? ¿Hay que entrar desde una IP, red o navegador concretos? | |
+| 18c | En betsson.es aparece el diálogo de límites de sesión de la DGOJ (tiempo y límite de pérdidas) antes de jugar, y mientras dura la sesión no se puede crear otra. ¿Pueden ir las cuentas de prueba sin límite? ¿Qué valores recomendáis? ¿Hay forma de cerrar la sesión al terminar cada ejecución? | |
+
 ## 3. Organización
 
 | # | Pregunta | Respuesta |
