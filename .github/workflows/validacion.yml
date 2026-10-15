@@ -29,7 +29,8 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: pytest -m unit
+      # En los PR se saltan los lentos (marca slow) para tener respuesta rápida; en main y a mano, todos.
+      - run: pytest -m "${{ github.event_name == 'pull_request' && 'unit and not slow' || 'unit' }}"
 
   real:
     name: Real · ${{ matrix.market }}
@@ -130,7 +131,7 @@ jobs:
           foreach ($k in 'USERNAME','PASSWORD','EMPTY_USERNAME','EMPTY_PASSWORD') {
             [Environment]::SetEnvironmentVariable("BETSSON_${m}_$k", [Environment]::GetEnvironmentVariable("BETSSON_$k"))
           }
-          & $env:VENV_PY -m pytest -m "unit or real or browser" --market $env:MARKET --headed --browser-channel chrome
+          & $env:VENV_PY -m pytest -m "(unit and not slow) or real or browser" --market $env:MARKET --headed --browser-channel chrome
           exit $LASTEXITCODE
 
       - name: Buscar secretos en las evidencias
