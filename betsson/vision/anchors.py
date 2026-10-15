@@ -68,7 +68,9 @@ def _strip_label(text: str, alias_norm: str) -> str:
 def _distance_right(label: TextBox, box: TextBox) -> float | None:
     same_row = abs(box.cy - label.cy) <= max(label.height, box.height) * 0.7
     gap = box.x0 - label.x1
-    if not same_row or gap < -label.height * 0.5:
+    # Las cajas del OCR se solapan a menudo (real: 'CRÉDITO' hasta x=274 y '99,90 €' desde x=262):
+    # basta con que el centro del valor quede a la derecha del final de la etiqueta.
+    if not same_row or box.cx <= label.x1:
         return None
     rel = max(0.0, gap / max(label.height, 1))
     return rel if rel <= _MAX_RIGHT_GAP else None

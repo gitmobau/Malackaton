@@ -53,6 +53,16 @@ class TestAnclas:
         same_row = [box("CRÉDITO", 0, 700, 90, 720), box("APUESTA", 300, 700, 390, 720), box("2,00 €", 400, 700, 450, 720)]
         assert find_amount(same_row, ["CRÉDITO"]) is None
 
+    def test_valor_solapado_con_la_etiqueta(self) -> None:
+        """Run real 17:32: las cajas de 'CRÉDITO' y '99,90 €' se solapan 12 px y no se encontraba el saldo."""
+        boxes = [
+            box("CRÉDITO", 188, 575, 274, 598, 0.96),
+            box("99,90 €", 262, 577, 326, 602, 0.97),
+            box("APUESTA 0,10 €", 183, 594, 317, 626, 1.0),
+        ]
+        found = find_amount(boxes, ["CRÉDITO"])
+        assert found is not None and found.value_text == "99,90 €" and found.strategy == "right"
+
     def test_inline_con_otro_importe_pegado_es_ambiguo(self) -> None:
         """Caso real en betsson.es: el OCR leyó 'CRÉDITO 1' y a su derecha '100,00 €'. Nunca se toma el '1'."""
         boxes = [box("CRÉDITO 1", 188, 575, 262, 592, 0.97), box("100,00 €", 263, 576, 330, 593, 1.0)]
