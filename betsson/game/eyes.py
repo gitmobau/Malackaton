@@ -139,7 +139,28 @@ class GameEyes:
             anchored = find_amount(read_text(frame, upscale=upscale), aliases, hint)
             if anchored is not None:
                 return anchored
-        return None
+        # Último intento: solo la zona del perfil (con margen), ampliada. Es una pista, no la prueba: el
+        # importe se sigue anclando a su etiqueta visible dentro del recorte.
+        return self._find_in_zone(frame, aliases, hint) if hint else None
+
+    def _find_in_zone(
+        self, frame: np.ndarray, aliases: list[str], hint: tuple[int, int, int, int]
+    ) -> AnchoredValue | None:
+        height, width = frame.shape[:2]
+        x0, y0, x1, y1 = hint
+        mx, my = (x1 - x0) // 5, (y1 - y0) // 5
+        x0, y0, x1, y1 = max(0, x0 - mx), max(0, y0 - my), min(width, x1 + mx), min(height, y1 + my)
+        crop = frame[y0:y1, x0:x1]
+        if crop.size == 0:
+            return None
+        boxes = [
+            TextBox(b.text, b.score, b.x0 + x0, b.y0 + y0, b.x1 + x0, b.y1 + y0)
+            for b in read_text(crop, upscale=_REREAD_UPSCALE)
+        ]
+        anchored = find_amount(boxes, aliases)
+        if anchored is not None:
+            self.notes.append("importe encontrado releyendo ampliada la zona del perfil")
+        return anchored
 
     def _reread_value(self, frame: np.ndarray, anchored: AnchoredValue) -> _Read | None:
         """Segunda lectura: solo el recorte del importe, ampliado. El OCR del frame entero corta mal a veces.

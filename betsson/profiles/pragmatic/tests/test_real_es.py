@@ -21,6 +21,7 @@ from betsson.vision.geometry import contains
 REAL = Path(__file__).resolve().parents[4] / "fixtures" / "pragmatic" / "real-es"
 # (captura, crédito, apuesta, ganancia) leídos con parse_money del mercado es
 S1 = [
+    ("004_credito_99_90.png", "99.90", "0.10", "0"),  # run real 17:32: cajas de CRÉDITO y valor solapadas
     ("01_reposo_apuesta_2.png", "100.00", "2.00", "0"),
     ("02_apuesta_min.png", "100.00", "0.10", "0"),
     ("04_fin_sin_premio.png", "99.90", "0.10", "0"),
