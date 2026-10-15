@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -60,9 +61,10 @@ class FakeGameHandle:
     play_mode: PlayMode = "real"
     play_mode_reason: str | None = "Betsson pidió los límites de sesión del regulador"
     evidence: tuple[Path, ...] = ()
+    frame: np.ndarray | None = None  # canvas simulado; None = negro
 
     def capture(self) -> np.ndarray:
-        return np.zeros((36, 64, 3), dtype=np.uint8)
+        return self.frame if self.frame is not None else np.zeros((36, 64, 3), dtype=np.uint8)
 
 
 @dataclass
@@ -71,6 +73,8 @@ class FakeBetssonSite:
     out_dir: Path
     logged_in: bool = True
     handle: FakeGameHandle = field(default_factory=FakeGameHandle)
+    login_assisted: bool = False
+    login_assisted_at: datetime | None = None
     open_error: str | None = None
 
     def login(self) -> bool:
