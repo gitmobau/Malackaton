@@ -174,7 +174,7 @@ def test_s2_spin_rechazada_si_aparece_la_ventana_del_mensaje(profile: ProfileSpe
     before = read_image(s2 / "03_antes_de_pulsar_panel_apuesta.png")
     fading = read_image(s2 / "04_ventana_apareciendo.png")
     message = read_image(s2 / "02_mensaje_fondos_insuficientes.png")
-    source = FileFrameSource([before, fading, message])
+    source = FileFrameSource([before] * 6 + [fading, message])  # 6 de reposo: calibración
     eyes = GameEyes(source, profile, load_market("es"))
     assert eyes.spin() is False
     assert any("rechazada" in n for n in eyes.notes)
@@ -184,5 +184,5 @@ def test_s2_spin_rechazada_si_aparece_la_ventana_del_mensaje(profile: ProfileSpe
 
 def test_s1_una_tirada_de_verdad_sigue_contando_como_iniciada(profile: ProfileSpec) -> None:
     s1 = REAL / "s1"
-    source = FileFrameSource([read_image(s1 / "02_apuesta_min.png"), read_image(s1 / "03_girando.png")])
+    source = FileFrameSource([read_image(s1 / "02_apuesta_min.png")] * 6 + [read_image(s1 / "03_girando.png")])
     assert GameEyes(source, profile, load_market("es")).spin() is True
