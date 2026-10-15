@@ -9,6 +9,9 @@ on:
       game_slug:
         description: "Slug del juego en Betsson (vacío = variable del repo GAME_SLUG)"
         default: ""
+      scenarios:
+        description: "Escenarios a ejecutar: s1, s2 o s1,s2"
+        default: "s1,s2"
   pull_request:
   push:
     branches: [main]
@@ -66,6 +69,8 @@ jobs:
       # Sirve para probar el despliegue sin abrir Chrome ni gastar saldo.
       # com y pe: configurados, sin cuenta.
       ENABLED: ${{ contains(format(',{0},', github.event.inputs.markets), format(',{0},', matrix.market)) }}
+      # Escenarios pedidos; se validan y se traducen a -k en "Ejecutar escenarios".
+      SCENARIOS: ${{ github.event.inputs.scenarios || 's1,s2' }}
       VENV_PY: ${{ vars.VENV_PY || 'D:\MAIKI\Malackathon\.venv\Scripts\python.exe' }}
       PLAYWRIGHT_BROWSERS_PATH: D:\DevCache\ms-playwright
     steps:
@@ -127,6 +132,16 @@ jobs:
           BETSSON_EMPTY_USERNAME: ${{ secrets[format('BETSSON_{0}_EMPTY_USERNAME', matrix.secret_prefix)] }}
           BETSSON_EMPTY_PASSWORD: ${{ secrets[format('BETSSON_{0}_EMPTY_PASSWORD', matrix.secret_prefix)] }}
         run: |
+          # s1 → quita test_real_s2; s2 → quita test_real_s1; s1,s2 → sin -k. Los tests sin red se ejecutan siempre.
+          $pedidos = @("$env:SCENARIOS".ToLower().Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique)
+          $raros = @($pedidos | Where-Object { $_ -notin 's1','s2' })
+          if ($pedidos.Count -eq 0 -or $raros.Count -gt 0) {
+            Write-Output "::error::Input scenarios no válido: usa s1, s2 o s1,s2."
+            exit 1
+          }
+          $filtro = @()
+          if ($pedidos.Count -eq 1) { $filtro = @('-k', "not real_$(@('s1','s2') | Where-Object { $_ -ne $pedidos[0] })") }
+          Write-Output "Escenarios: $($pedidos -join ',') $($filtro -join ' ')"
           $m = $env:MARKET.ToUpper()
           foreach ($k in 'USERNAME','PASSWORD','EMPTY_USERNAME','EMPTY_PASSWORD') {
             [Environment]::SetEnvironmentVariable("BETSSON_${m}_$k", [Environment]::GetEnvironmentVariable("BETSSON_$k"))
@@ -134,7 +149,7 @@ jobs:
           # Sin traza, vídeo ni capturas automáticas de pytest-playwright: con la sesión iniciada la traza
           # guarda el perfil del cliente (GET /api/v2/es/currentcustomer: dirección, documento, KYC).
           # Anulan las opciones de pytest.ini (la línea de comandos manda).
-          & $env:VENV_PY -m pytest -m "(unit and not slow) or real or browser" --market $env:MARKET --headed --browser-channel chrome --tracing off --video off --screenshot off
+          & $env:VENV_PY -m pytest -m "(unit and not slow) or real or browser" --market $env:MARKET --headed --browser-channel chrome --tracing off --video off --screenshot off @filtro
           exit $LASTEXITCODE
 
       - name: Buscar secretos en las evidencias
