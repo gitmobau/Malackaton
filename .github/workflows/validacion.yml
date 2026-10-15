@@ -127,8 +127,9 @@ jobs:
           exit $LASTEXITCODE
 
       - name: Publicar evidencias e informe
-        # Solo si el escáner terminó en verde. Trazas (.zip) y vídeos (.webm) fuera
-        # hasta que el login esté pausado en la traza y tapado en el vídeo.
+        # Solo si el escáner terminó en verde. Trazas (.zip) y vídeos (.webm) nunca se publican:
+        # aunque el login esté fuera de la traza (SegmentedTrace de A), la red con sesión lleva
+        # las cookies de Betsson, que el escáner no reconoce. Se quedan en el runner para depurar.
         if: always() && env.ENABLED == 'true' && steps.scan.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:

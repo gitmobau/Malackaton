@@ -92,7 +92,7 @@ Workflow `.github/workflows/validacion.yml` ("Validación de juegos"):
   ```
   Abre Chrome en el portátil del runner y gasta saldo: avisar al equipo antes.
 - Secretos en *Settings → Secrets → Actions*: `BETSSON_<MERCADO>_USERNAME` y `BETSSON_<MERCADO>_PASSWORD` (y `..._EMPTY_...` para el escenario 2). Mismos nombres que en `.env.example`.
-- Antes de publicar el artifact, `.github/scripts/scan_secrets.py` busca las credenciales en `outputs/`. Si encuentra alguna, no se publica nada. Las trazas y los vídeos quedan fuera del artifact hasta que el login esté tapado.
+- Antes de publicar el artifact, `.github/scripts/scan_secrets.py` busca las credenciales en `outputs/`. Si encuentra alguna, no se publica nada. Las trazas y los vídeos **nunca** se publican: aunque el login quede fuera de la traza, la red con sesión lleva las cookies de Betsson, que el escáner no reconoce. Se quedan en el runner para depurar.
 - **Informe web**: tras una ejecución a mano, el job `pages` genera `index.html` con el resumen PASS/FAIL y los enlaces a `report.html` y `results.json` de cada mercado (`.github/scripts/build_pages.py`). Solo usa evidencias que ya pasaron el escáner de secretos y nunca publica trazas ni vídeos. Siempre se sube como artifact `informe-web-<runId>-<intento>`.
 - **GitHub Pages**: el plan de la cuenta no lo permite en un repo privado (HTTP 422). Si el repo pasa a público o la cuenta a Pro: *Settings → Pages → Source: GitHub Actions* y variable del repo `PAGES_ENABLED=true`. Ojo: la web de Pages es pública.
 - **Probar el despliegue sin gastar saldo**: `gh workflow run "Validación de juegos" -R gitmobau/Malackaton -f markets=ninguno` (ningún mercado activo: no abre Chrome).
