@@ -60,7 +60,7 @@ Estado a 15-oct, al migrar al portátil de Alejandro. Rama `feat/D-infra`.
 3. Crear los secretos en GitHub (ver abajo) cuando lleguen las cuentas.
 4. Lanzar a mano *Actions → Validación de juegos → Run workflow* (mercados: `es`) y comprobar que el artifact `evidencias-es-*` se publica.
 5. Rellenar `.github/CODEOWNERS` con los usuarios de GitHub de los cuatro (pedírselos al equipo).
-6. Pedir la cuenta de Oracle: encuesta del correo, con un correo `@uma.es` (Guilli). Es un seguro, no una dependencia.
+6. ~~Pedir la cuenta de Oracle.~~ Hecho (15-oct): Guilli tiene la cuenta. Es un seguro: si el portátil falla como runner, se crea una VM Windows en la región de Madrid y se registra allí el runner con los mismos pasos (ver "Registrar el runner"). Las credenciales de Oracle no van al repo.
 7. Más adelante: publicar `report.html` en GitHub Pages, cuando el escáner y el tapado del login estén garantizados. Volver a meter trazas y vídeos en el artifact solo entonces. A ya pausa la traza en el login (`betsson/site/tracing.py`, `ChunkedTrace`) y tapa los campos con blur.
 
 ## Registrar el runner en el portátil nuevo
