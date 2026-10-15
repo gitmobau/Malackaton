@@ -6,6 +6,9 @@ on:
       markets:
         description: "Mercados a ejecutar en real, separados por comas (es, com, pe)"
         default: "es"
+      game_slug:
+        description: "Slug del juego en Betsson (vacío = variable del repo GAME_SLUG)"
+        default: ""
   pull_request:
   push:
     branches: [main]
@@ -54,9 +57,14 @@ jobs:
             secret_prefix: PE
     env:
       MARKET: ${{ matrix.market }}
+      # Juego a validar (lo lee el test real de C; si falta, el test se salta con motivo).
+      GAME_SLUG: ${{ github.event.inputs.game_slug || vars.GAME_SLUG }}
       RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
-      # Activo solo si está en la lista: por defecto "es". com y pe: configurados, sin cuenta.
-      ENABLED: ${{ contains(format(',{0},', github.event.inputs.markets || 'es'), format(',{0},', matrix.market)) }}
+      # Activo solo si está en la lista (sin espacios: "es,com"); el input vale "es" por defecto.
+      # "ninguno" = ningún mercado (vacío no vale: GitHub lo cambia por el valor por defecto).
+      # Sirve para probar el despliegue sin abrir Chrome ni gastar saldo.
+      # com y pe: configurados, sin cuenta.
+      ENABLED: ${{ contains(format(',{0},', github.event.inputs.markets), format(',{0},', matrix.market)) }}
       VENV_PY: ${{ vars.VENV_PY || 'D:\MAIKI\Malackathon\.venv\Scripts\python.exe' }}
       PLAYWRIGHT_BROWSERS_PATH: D:\DevCache\ms-playwright
     steps:
@@ -88,6 +96,26 @@ jobs:
           Remove-Item -Recurse -Force outputs -ErrorAction SilentlyContinue
           exit 0
 
+      - name: Comprobar el login asistido (Chrome con sesión abierta)
+        # Login asistido autorizado por el mentor: una persona inicia sesión en Chrome (perfiles en
+        # D:\MAIKI\Malackathon\.chrome-profiles) y el comprobador se conecta por CDP. El runner debe
+        # correr con el mismo usuario de Windows que ese Chrome para llegar a 127.0.0.1.
+        if: env.ENABLED == 'true'
+        shell: powershell
+        env:
+          CDP_PORTS: ${{ vars.CDP_PORTS || '9222,9223' }}
+        run: |
+          $fallan = @()
+          foreach ($p in $env:CDP_PORTS.Split(',')) {
+            try { Invoke-RestMethod -Uri "http://127.0.0.1:$($p.Trim())/json/version" -TimeoutSec 5 | Out-Null }
+            catch { $fallan += $p.Trim() }
+          }
+          if ($fallan.Count -gt 0) {
+            Write-Output "::error::Chrome no responde en los puertos CDP $($fallan -join ', '): repetir login asistido."
+            exit 1
+          }
+          Write-Output "Login asistido disponible en los puertos $env:CDP_PORTS."
+
       - name: Ejecutar escenarios
         if: env.ENABLED == 'true'
         shell: powershell
@@ -102,7 +130,7 @@ jobs:
           foreach ($k in 'USERNAME','PASSWORD','EMPTY_USERNAME','EMPTY_PASSWORD') {
             [Environment]::SetEnvironmentVariable("BETSSON_${m}_$k", [Environment]::GetEnvironmentVariable("BETSSON_$k"))
           }
-          & $env:VENV_PY -m pytest -m "unit or real" --market $env:MARKET --headed --browser-channel chrome
+          & $env:VENV_PY -m pytest -m "unit or real or browser" --market $env:MARKET --headed --browser-channel chrome
           exit $LASTEXITCODE
 
       - name: Buscar secretos en las evidencias
@@ -119,8 +147,9 @@ jobs:
           exit $LASTEXITCODE
 
       - name: Publicar evidencias e informe
-        # Solo si el escáner terminó en verde. Trazas (.zip) y vídeos (.webm) fuera
-        # hasta que el login esté pausado en la traza y tapado en el vídeo.
+        # Solo si el escáner terminó en verde. Trazas (.zip) y vídeos (.webm) nunca se publican:
+        # aunque el login esté fuera de la traza (SegmentedTrace de A), la red con sesión lleva
+        # las cookies de Betsson, que el escáner no reconoce. Se quedan en el runner para depurar.
         if: always() && env.ENABLED == 'true' && steps.scan.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
@@ -131,3 +160,54 @@ jobs:
             !outputs/**/*.webm
           if-no-files-found: warn
           retention-days: 7
+
+  pages:
+    name: Informe web (artifact y GitHub Pages)
+    needs: real
+    # Solo tras una ejecución a mano. Usa únicamente los artifacts "evidencias-*", que solo existen
+    # si el escáner de secretos salió en verde. Corre en GitHub: no necesita secretos ni el portátil.
+    if: always() && github.event_name == 'workflow_dispatch' && needs.real.result != 'skipped' && needs.real.result != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Descargar las evidencias escaneadas
+        uses: actions/download-artifact@v4
+        with:
+          pattern: evidencias-*
+          path: evidencias
+
+      - name: Construir la web del informe
+        env:
+          MARKETS: ${{ github.event.inputs.markets }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python .github/scripts/build_pages.py evidencias site
+
+      - name: Publicar la web como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: informe-web-${{ github.run_id }}-${{ github.run_attempt }}
+          path: site/
+          retention-days: 7
+
+      # GitHub Pages: el plan actual no lo permite en un repo privado (HTTP 422).
+      # Se activa con la variable del repo PAGES_ENABLED=true cuando Pages esté disponible
+      # (Settings → Pages → Source: GitHub Actions). Ojo: la web de Pages es pública.
+      - name: Preparar Pages
+        if: vars.PAGES_ENABLED == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+
+      - name: Desplegar en Pages
+        if: vars.PAGES_ENABLED == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4

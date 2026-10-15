@@ -1,0 +1,28 @@
+{
+  "id": "pe",
+  "name": "Perú (betsson, soles)",
+  "base_url": "https://www.betsson.com/pe",
+  "locale": "es-PE",
+  "language": "es",
+  "timezone": "America/Lima",
+  "currency": {
+    "code": "PEN",
+    "symbols": ["S/.", "S/", "PEN", "soles"],
+    "symbol_position": "before"
+  },
+  "number_format": { "thousands_sep": ",", "decimal_sep": ".", "decimals": 2 },
+  "min_bet": "0.20",
+  "expected_texts": {
+    "insufficient_funds": ["saldo insuficiente", "fondos insuficientes", "no tienes saldo suficiente"],
+    "balance_labels": ["saldo", "crédito", "credito"],
+    "bet_labels": ["apuesta"],
+    "win_labels": ["ganancia", "premio", "ganado"]
+  },
+  "credentials_env": {
+    "username": "BETSSON_PE_USERNAME",
+    "password": "BETSSON_PE_PASSWORD"
+  },
+  "site": { "casino_path": "/casino" },
+  "real_execution_enabled": false,
+  "verified": false
+}

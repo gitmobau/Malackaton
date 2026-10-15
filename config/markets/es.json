@@ -1,0 +1,38 @@
+{
+  "id": "es",
+  "name": "España (betsson.es)",
+  "base_url": "https://www.betsson.es",
+  "locale": "es-ES",
+  "language": "es",
+  "timezone": "Europe/Madrid",
+  "currency": {
+    "code": "EUR",
+    "symbols": ["€", "EUR", "euros"],
+    "symbol_position": "after"
+  },
+  "number_format": { "thousands_sep": ".", "decimal_sep": ",", "decimals": 2 },
+  "min_bet": "0.10",
+  "expected_texts": {
+    "insufficient_funds": ["saldo insuficiente", "fondos insuficientes", "no tienes saldo suficiente", "no dispone de saldo suficiente"],
+    "balance_labels": ["saldo", "crédito", "credito"],
+    "bet_labels": ["apuesta"],
+    "win_labels": ["ganancia", "premio", "ganado"]
+  },
+  "credentials_env": {
+    "username": "BETSSON_ES_USERNAME",
+    "password": "BETSSON_ES_PASSWORD",
+    "username_insufficient": "BETSSON_ES_EMPTY_USERNAME",
+    "password_insufficient": "BETSSON_ES_EMPTY_PASSWORD"
+  },
+  "site": {
+    "casino_path": "/casino",
+    "session_limits": {
+      "title_pattern": "l[ií]mite de tiempo de sesi[oó]n|tiempo de juego",
+      "time_option_pattern": "^\\s*15 ?min\\s*$",
+      "loss_option_pattern": "^\\s*25\\s*%",
+      "submit_pattern": "^\\s*iniciar sesi[oó]n\\s*$"
+    }
+  },
+  "real_execution_enabled": true,
+  "verified": true
+}
