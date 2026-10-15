@@ -49,6 +49,11 @@ def _check(session: BrowserSession, *, record: bool) -> bool:
     return ok
 
 
+def check_session(session: BrowserSession) -> bool:
+    """Comprobación pública (la usa betsson.site.run): igual que --check."""
+    return _check(session, record=True)
+
+
 def _peek(session: BrowserSession) -> bool:
     """Solo MIRA las pestañas abiertas (sin navegar ni abrir ninguna, para no robar el foco a quien escribe)."""
     market = session.market
