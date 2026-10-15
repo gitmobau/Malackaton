@@ -1,108 +1,80 @@
-"""Contrato de un perfil de proveedor (copia provisional hasta que el área C publique betsson/core).
+"""Modelo de un perfil de proveedor (área B). Cumple el Protocol betsson.core.ProviderProfile.
 
 Un perfil son *datos*: alias de las etiquetas por idioma, pistas de zona en fracciones del canvas,
-el botón de girar, las pantallas de inicio y los textos de saldo insuficiente.
+el botón de girar, los controles de apuesta, las pantallas de inicio y los textos de saldo insuficiente.
 El motor (betsson/vision, betsson/game) no conoce ningún proveedor: solo lee estos datos.
-
-Cuando llegue betsson/core/interfaces.py, Rect, IntroScreen, SpinEndSignal y AmountField
-se importarán de allí y este módulo solo mantendrá ProviderProfile (implementación de B).
 """
 from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Literal
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-AmountField = Literal["balance", "bet", "win"]
-AMOUNT_FIELDS: tuple[AmountField, ...] = ("balance", "bet", "win")
+from betsson.core import GameField, IntroScreen, Rect, SpinEndSignal
+
+AMOUNT_FIELDS: tuple[GameField, ...] = ("balance", "bet", "win")
 
 
-class Rect(BaseModel):
-    """Rectángulo en fracciones del canvas (0..1). Nunca píxeles absolutos."""
+class IntroStep(IntroScreen):
+    """IntroScreen de core más cómo cerrarla: por texto, por plantilla (`template`), por pista o esperando."""
 
-    model_config = ConfigDict(frozen=True)
-
-    x: float = Field(ge=0, le=1)
-    y: float = Field(ge=0, le=1)
-    w: float = Field(gt=0, le=1)
-    h: float = Field(gt=0, le=1)
-
-    @model_validator(mode="after")
-    def _inside_canvas(self) -> "Rect":
-        if self.x + self.w > 1.0001 or self.y + self.h > 1.0001:
-            raise ValueError(f"el rectángulo se sale del canvas: {self}")
-        return self
-
-    @property
-    def center(self) -> tuple[float, float]:
-        return (self.x + self.w / 2, self.y + self.h / 2)
-
-    def to_pixels(self, width: int, height: int) -> tuple[int, int, int, int]:
-        """(x0, y0, x1, y1) en píxeles para una imagen concreta."""
-        return (
-            int(self.x * width),
-            int(self.y * height),
-            int((self.x + self.w) * width),
-            int((self.y + self.h) * height),
-        )
-
-
-class IntroScreen(BaseModel):
-    """Pantalla de inicio que hay que cerrar antes de jugar (sonido, continuar, tutorial)."""
-
-    model_config = ConfigDict(frozen=True)
-
-    name: str
-    match_texts: list[str] = []  # subcadenas que el OCR debe ver (se comparan sin tildes ni mayúsculas)
-    click: Rect | None = None  # dónde pulsar si no se encuentra el botón (pista en fracción)
     click_text: str | None = None  # texto del botón que hay que pulsar (preferente)
-    click_template: Path | None = None  # plantilla del botón si no tiene texto
     wait_only: bool = False  # pantalla de carga: no se pulsa, se espera a que cambie
 
     @model_validator(mode="after")
-    def _has_action(self) -> "IntroScreen":
+    def _recognizable(self) -> IntroStep:
         if not self.match_texts:
             raise ValueError(f"intro '{self.name}': sin textos para reconocerla")
-        if not (self.wait_only or self.click or self.click_text or self.click_template):
-            raise ValueError(f"intro '{self.name}': no dice cómo cerrarla")
         return self
 
 
-class SpinEndSignal(BaseModel):
+class SpinTiming(SpinEndSignal):
+    """SpinEndSignal de core más el tiempo máximo para ver que la tirada empieza."""
+
+    start_timeout_s: float = Field(default=5.0, gt=0)
+
+
+class Control(BaseModel):
+    """Un botón del juego: plantilla (preferente) y pista de zona en fracciones."""
+
     model_config = ConfigDict(frozen=True)
 
-    diff_threshold: float = Field(default=0.004, gt=0)  # cambio medio mínimo para "se mueve"
-    stable_frames: int = Field(default=4, ge=2)  # frames seguidos sin cambio = fin de la tirada
-    start_timeout_s: float = Field(default=5.0, gt=0)
-    timeout_s: float = Field(default=30.0, gt=0)
+    templates: list[Path] = []
+    hint: Rect
 
 
-class ProviderProfile(BaseModel):
+class ProfileSpec(BaseModel):
     """Perfil enchufable de un proveedor. Añadir un proveedor = añadir una carpeta con un PROFILE."""
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
+    # --- Protocol de core ---
     name: str
-    url_patterns: list[str] = []  # regex sobre la URL del iframe del juego
-    intro_screens: list[IntroScreen] = []
-    labels: dict[AmountField, dict[str, list[str]]]  # campo -> idioma -> alias visibles
-    hint_zones: dict[AmountField, Rect] = {}  # solo pista; el ancla real es la etiqueta
+    intro_screens: list[IntroStep] = []
+    labels: dict[GameField, dict[str, list[str]]]  # campo -> idioma -> alias visibles
+    hint_zones: dict[GameField, Rect] = {}  # solo pista; el ancla real es la etiqueta
     spin_templates: list[Path] = []
-    spin_hint: Rect | None = None
-    spin_key: str | None = None  # tecla alternativa para girar
+    spin_hint: Rect
     insufficient_texts: dict[str, list[str]] = {}  # idioma -> textos de saldo insuficiente
-    spin_end: SpinEndSignal = SpinEndSignal()
+    spin_end: SpinTiming = SpinTiming()
     network_pattern: str | None = None  # regex de la petición de tirada; solo confirma
+    # --- propio de B ---
+    url_patterns: list[str] = []  # regex sobre la URL del iframe del juego
+    spin_key: str | None = None  # tecla alternativa para girar
+    bet_down: Control | None = None
+    bet_up: Control | None = None
+    # True si el juego no muestra la etiqueta de ganancia cuando la tirada no gana:
+    # entonces "sin etiqueta tras una tirada" se lee como ganancia 0.
+    win_hidden_when_zero: bool = False
     demo_url: str | None = None  # demo pública sin registro, para capturar fixtures
 
     @field_validator("labels")
     @classmethod
     def _all_fields_labelled(
-        cls, value: dict[AmountField, dict[str, list[str]]]
-    ) -> dict[AmountField, dict[str, list[str]]]:
+        cls, value: dict[GameField, dict[str, list[str]]]
+    ) -> dict[GameField, dict[str, list[str]]]:
         missing = [f for f in AMOUNT_FIELDS if not any(value.get(f, {}).values())]
         if missing:
             raise ValueError(f"faltan alias de etiqueta para: {missing}")
@@ -115,7 +87,7 @@ class ProviderProfile(BaseModel):
             re.compile(pattern)
         return value
 
-    def label_aliases(self, field: AmountField, lang: str | None = None) -> list[str]:
+    def label_aliases(self, field: GameField, lang: str | None = None) -> list[str]:
         """Alias de la etiqueta: primero los del idioma pedido y después el resto (los juegos mezclan idiomas)."""
         by_lang = self.labels[field]
         ordered = list(by_lang.get(lang, [])) if lang else []

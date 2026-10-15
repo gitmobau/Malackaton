@@ -1,7 +1,9 @@
 """OCR sobre el canvas con RapidOCR. Devuelve cajas de texto en píxeles del frame original."""
 from __future__ import annotations
 
+import hashlib
 import unicodedata
+from collections import OrderedDict
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -61,19 +63,26 @@ def _raw_results(image: np.ndarray) -> list[tuple]:
     return list(zip(output.boxes, output.txts, output.scores))
 
 
-@lru_cache(maxsize=32)
-def _cached(key: bytes, shape: tuple[int, ...], upscale: float, min_score: float) -> tuple[TextBox, ...]:
-    frame = np.frombuffer(key, dtype=np.uint8).reshape(shape)
-    return tuple(_read_uncached(frame, upscale, min_score))
+_CACHE_SIZE = 16
+_cache: OrderedDict[tuple[str, tuple[int, ...], float, float], tuple[TextBox, ...]] = OrderedDict()
 
 
 def read_text(frame: np.ndarray, upscale: float = 1.0, min_score: float = 0.5) -> list[TextBox]:
     """Todas las cajas de texto del frame (BGR). upscale > 1 ayuda con textos pequeños del canvas.
 
-    Se cachea por contenido: leer saldo, apuesta y ganancia del mismo frame solo hace un OCR.
+    Se cachea por un hash corto del contenido: leer saldo, apuesta y ganancia del mismo frame solo hace
+    un OCR, sin retener los frames enteros como clave.
     """
     contiguous = np.ascontiguousarray(frame)
-    return list(_cached(contiguous.tobytes(), contiguous.shape, upscale, min_score))
+    key = (hashlib.blake2b(contiguous.tobytes(), digest_size=16).hexdigest(), contiguous.shape, upscale, min_score)
+    if key in _cache:
+        _cache.move_to_end(key)
+        return list(_cache[key])
+    boxes = tuple(_read_uncached(contiguous, upscale, min_score))
+    _cache[key] = boxes
+    if len(_cache) > _CACHE_SIZE:
+        _cache.popitem(last=False)
+    return list(boxes)
 
 
 def _read_uncached(frame: np.ndarray, upscale: float, min_score: float) -> list[TextBox]:

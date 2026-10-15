@@ -1,9 +1,10 @@
 """Localiza importes por su etiqueta visible (CREDIT/SALDO, BET/APUESTA, WIN/GANANCIA), no por posición.
 
 Estrategia, en orden:
-1. Caja que contiene la etiqueta y el número a la vez ("CREDIT 100,000.00 €").
-2. Caja con número más cercana a la derecha de la etiqueta, en la misma fila.
-3. Caja con número más cercana debajo de la etiqueta, en la misma columna.
+1. Caja que contiene la etiqueta y solo un importe a continuación ("CREDIT 100,000.00 €").
+2. Caja con importe más cercana a la derecha de la etiqueta, en la misma fila.
+3. Caja con importe más cercana debajo de la etiqueta, en la misma columna.
+Un valor que otra etiqueta tiene igual o más cerca no se asigna (no se roba el importe de otro campo).
 La zona del perfil solo desempata (si hay varias etiquetas iguales, gana la que cae dentro).
 """
 from __future__ import annotations
@@ -13,12 +14,14 @@ from dataclasses import dataclass
 
 from betsson.vision.ocr import TextBox, normalize
 
-# Número con separadores de miles/decimales opcionales, con o sin símbolo alrededor.
-_NUMBER = re.compile(r"\d[\d.,\s]*\d|\d")
+# Número con separadores de miles/decimales opcionales.
+_NUMBER = re.compile(r"\d[\d.,]*\d|\d")
 _LEADING_WORD = re.compile(r"^[A-Z]{3,}")
+# Un importe admite como mucho un código o símbolo de moneda con letras ("EUR", "S/", "PEN").
+_MAX_LETTERS_IN_VALUE = 3
 # Máxima distancia, en alturas de la etiqueta, para aceptar un valor como "suyo".
-_MAX_RIGHT_GAP = 12.0
-_MAX_BELOW_GAP = 3.0
+_MAX_RIGHT_GAP = 6.0
+_MAX_BELOW_GAP = 2.0
 
 
 @dataclass(frozen=True)
@@ -34,9 +37,11 @@ def has_number(text: str) -> bool:
     return bool(_NUMBER.search(text))
 
 
-def _is_bare_value(text: str) -> bool:
-    """Un valor suelto empieza por número o símbolo; si empieza por palabra es otra etiqueta ('APUESTA 2,00 €')."""
-    return has_number(text) and not _LEADING_WORD.match(normalize(text))
+def is_bare_value(text: str) -> bool:
+    """Solo un importe: número con su símbolo o código de moneda. 'APUESTA 2,00 €', '10 FREE' o 'X2 MAX' no."""
+    norm = normalize(text)
+    letters = sum(c.isalpha() for c in norm)
+    return has_number(norm) and not _LEADING_WORD.match(norm) and letters <= _MAX_LETTERS_IN_VALUE
 
 
 def _label_match(box: TextBox, aliases: list[str]) -> str | None:
@@ -54,7 +59,7 @@ def _strip_label(text: str, alias_norm: str) -> str:
     norm = normalize(text)
     if not norm.startswith(alias_norm):
         return text
-    # La normalización conserva la longitud salvo tildes combinadas: se corta por número de palabras.
+    # La normalización conserva las palabras: se corta por número de palabras de la etiqueta.
     words = text.split()
     rest = words[len(alias_norm.split()):]
     return " ".join(rest).lstrip(":").strip()
@@ -65,7 +70,7 @@ def _distance_right(label: TextBox, box: TextBox) -> float | None:
     gap = box.x0 - label.x1
     if not same_row or gap < -label.height * 0.5:
         return None
-    rel = gap / max(label.height, 1)
+    rel = max(0.0, gap / max(label.height, 1))
     return rel if rel <= _MAX_RIGHT_GAP else None
 
 
@@ -75,28 +80,54 @@ def _distance_below(label: TextBox, box: TextBox) -> float | None:
     gap = box.y0 - label.y1
     if not same_column or gap < -label.height * 0.3:
         return None
-    rel = gap / max(label.height, 1)
+    rel = max(0.0, gap / max(label.height, 1))
     return rel if rel <= _MAX_BELOW_GAP else None
+
+
+_STRATEGIES = (("right", _distance_right), ("below", _distance_below))  # en orden de preferencia
+
+
+def _owned_by_other_label(
+    value: TextBox, label: TextBox, own_rank: int, own_distance: float, boxes: list[TextBox]
+) -> bool:
+    """True si otra etiqueta (caja que empieza por palabra) reclama ese valor con mejor derecho:
+    con una estrategia preferente (a la derecha gana a debajo) o con la misma y a igual o menor distancia."""
+    for other in boxes:
+        if other is label or other is value or not _LEADING_WORD.match(other.norm):
+            continue
+        for rank, (_, distance) in enumerate(_STRATEGIES):
+            d = distance(other, value)
+            if d is not None and (rank < own_rank or (rank == own_rank and d <= own_distance)):
+                return True
+    return False
 
 
 def _value_for(label: TextBox, alias_norm: str, boxes: list[TextBox]) -> AnchoredValue | None:
     inline = _strip_label(label.text, alias_norm)
-    if has_number(inline):
-        return AnchoredValue(label, inline, label.score, "inline", label)
-    values = [b for b in boxes if b is not label and _is_bare_value(b.text)]
+    if inline:
+        # Algo detrás de la etiqueta en la misma caja: solo vale si es un importe ('WIN UP TO 5.000 €' no).
+        return AnchoredValue(label, inline, label.score, "inline", label) if is_bare_value(inline) else None
+    values = [b for b in boxes if b is not label and is_bare_value(b.text)]
     # La misma fila manda: "debajo" solo cuenta si no hay nada a la derecha (las líneas apiladas
     # como CRÉDITO/APUESTA tienen el valor de la siguiente justo debajo de la etiqueta).
-    for strategy, distance in (("right", _distance_right), ("below", _distance_below)):
-        scored = [(d, b) for b in values if (d := distance(label, b)) is not None]
-        if scored:
-            _, box = min(scored, key=lambda pair: pair[0])
-            return AnchoredValue(label, box.text, min(label.score, box.score), strategy, box)
+    for rank, (strategy, distance) in enumerate(_STRATEGIES):
+        scored = sorted(
+            ((d, b) for b in values if (d := distance(label, b)) is not None), key=lambda pair: pair[0]
+        )
+        for d, box in scored:
+            if not _owned_by_other_label(box, label, rank, d, boxes):
+                return AnchoredValue(label, box.text, min(label.score, box.score), strategy, box)
     return None
 
 
 def bare_values(boxes: list[TextBox]) -> list[TextBox]:
-    """Cajas que son solo un importe (empiezan por número o símbolo), de izquierda a derecha."""
-    return sorted((b for b in boxes if _is_bare_value(b.text)), key=lambda b: b.x0)
+    """Cajas que son solo un importe, de izquierda a derecha."""
+    return sorted((b for b in boxes if is_bare_value(b.text)), key=lambda b: b.x0)
+
+
+def find_label(boxes: list[TextBox], aliases: list[str]) -> TextBox | None:
+    """Primera caja que es la etiqueta (tenga o no importe legible al lado)."""
+    return next((b for b in boxes if _label_match(b, aliases) is not None), None)
 
 
 def find_amount(
@@ -104,7 +135,7 @@ def find_amount(
     aliases: list[str],
     hint: tuple[int, int, int, int] | None = None,
 ) -> AnchoredValue | None:
-    """Importe asociado a la primera etiqueta reconocida. hint = (x0, y0, x1, y1) en píxeles, solo para desempatar."""
+    """Importe asociado a la etiqueta reconocida. hint = (x0, y0, x1, y1) en píxeles, solo para desempatar."""
     candidates: list[AnchoredValue] = []
     for box in boxes:
         alias = _label_match(box, aliases)

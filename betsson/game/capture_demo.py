@@ -11,11 +11,14 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 
 import cv2
 import numpy as np
 
+from betsson.game.money_reader import UnavailableMoneyReader
 from betsson.game.sources import PlaywrightCanvasSource
 from betsson.profiles.registry import get_profile
 from betsson.vision.diff import change_ratio
@@ -64,6 +67,16 @@ def wait_stable(
     return previous
 
 
+@dataclass(frozen=True)
+class _DemoMarket:
+    """Mercado de la demo pública (lang=es, cur=EUR en demo_url). Cumple betsson.core.MarketContext."""
+
+    id: str = "demo"
+    currency_code: str = "EUR"
+    language: str = "es"
+    money_tolerance: Decimal = Decimal("0.01")
+
+
 class Recorder:
     def __init__(self, out: Path) -> None:
         self.out = out
@@ -100,7 +113,7 @@ def run(profile_name: str, out: Path, spins: int, channel: str | None, until_win
         from betsson.game.eyes import GameEyes  # import tardío: GameEyes no hace falta para capturar la carga
 
         # Sin parse_money (es del área A): aquí solo interesa el texto en bruto que ve el OCR.
-        eyes = GameEyes(source, profile, lang="es", parse_money=lambda _t: None)
+        eyes = GameEyes(source, profile, _DemoMarket(), money_reader=UnavailableMoneyReader())
         dismissed = eyes.dismiss_intro()
         threshold = profile.spin_end.diff_threshold
         recorder.save("reposo", wait_stable(source, 3, 30, threshold), note=f"intro cerradas: {dismissed}")

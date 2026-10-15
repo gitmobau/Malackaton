@@ -60,6 +60,30 @@ class PlaywrightCanvasSource:
         self._page.keyboard.press(key)
 
 
+class HandleFrameSource:
+    """Canvas del juego a partir del GameHandle de core (lo devuelve BetssonSite.open_game, área A).
+
+    capture() del handle es RGB y el motor trabaja en BGR (OpenCV). Para pulsar se usa el canvas
+    (Locator de Playwright) que el handle de A expone.
+    """
+
+    def __init__(self, handle) -> None:  # noqa: ANN001 - betsson.core.GameHandle
+        canvas = getattr(handle, "canvas", None)
+        if canvas is None:
+            raise TypeError("el GameHandle no expone 'canvas': GameEyes no puede pulsar en el juego")
+        self._handle = handle
+        self._clicker = PlaywrightCanvasSource(canvas.page, canvas)
+
+    def grab(self) -> np.ndarray:
+        return cv2.cvtColor(np.ascontiguousarray(self._handle.capture()), cv2.COLOR_RGB2BGR)
+
+    def click(self, fx: float, fy: float) -> None:
+        self._clicker.click(fx, fy)
+
+    def press(self, key: str) -> None:
+        self._clicker.press(key)
+
+
 class FileFrameSource:
     """Reproduce capturas en orden: cada grab() avanza un frame y el último se repite.
 

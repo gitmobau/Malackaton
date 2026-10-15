@@ -6,7 +6,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from betsson.vision.anchors import find_amount
+from betsson.vision.anchors import find_amount, is_bare_value
 from betsson.vision.diff import change_ratio
 from betsson.vision.ocr import TextBox, normalize
 from betsson.vision.template import find_template
@@ -41,6 +41,25 @@ class TestAnclas:
         ]
         found = find_amount(boxes, ["CRÉDITO"])
         assert found is not None and found.value_text == "99.998,00 €" and found.strategy == "right"
+
+    def test_no_roba_el_importe_de_otra_etiqueta(self) -> None:
+        """Si el OCR pierde el valor de CRÉDITO, no se le asigna el de APUESTA (revisión, hallazgo 3)."""
+        boxes = [
+            box("CRÉDITO", 225, 687, 317, 717),
+            box("APUESTA", 220, 714, 319, 744),
+            box("2,00 €", 316, 716, 383, 748),
+        ]
+        assert find_amount(boxes, ["CRÉDITO"]) is None
+        same_row = [box("CRÉDITO", 0, 700, 90, 720), box("APUESTA", 300, 700, 390, 720), box("2,00 €", 400, 700, 450, 720)]
+        assert find_amount(same_row, ["CRÉDITO"]) is None
+
+    def test_inline_solo_si_lo_que_sigue_es_un_importe(self) -> None:
+        assert find_amount([box("WIN UP TO 5.000 €", 0, 0, 200, 20)], ["WIN"]) is None
+        assert find_amount([box("BET MAX 100", 0, 0, 200, 20)], ["BET"]) is None
+
+    def test_no_son_importes(self) -> None:
+        assert not is_bare_value("10 FREE SPINS") and not is_bare_value("APUESTA 2,00 €")
+        assert is_bare_value("2,00 €") and is_bare_value("S/ 1,234.50")
 
     def test_tildes_y_mayusculas_dan_igual(self) -> None:
         found = find_amount([box("Crédito: 5,00 €", 0, 0, 100, 20)], ["CRÉDITO"])

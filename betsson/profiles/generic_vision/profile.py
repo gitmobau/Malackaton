@@ -4,11 +4,11 @@ Más adelante, VisionProvider (IA con visión, opcional) localizará aquí el bo
 """
 from __future__ import annotations
 
-from betsson.profiles.base import ProviderProfile, Rect
+from betsson.core import Rect
+from betsson.profiles.base import ProfileSpec
 
-PROFILE = ProviderProfile(
+PROFILE = ProfileSpec(
     name="generic-vision",
-    url_patterns=[],
     labels={
         "balance": {"es": ["SALDO", "CRÉDITO", "BALANCE"], "en": ["BALANCE", "CREDIT", "CASH"]},
         "bet": {"es": ["APUESTA", "APUESTA TOTAL"], "en": ["BET", "TOTAL BET", "STAKE"]},
