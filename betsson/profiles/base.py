@@ -60,6 +60,9 @@ class ProfileSpec(BaseModel):
     spin_templates: list[Path] = []
     spin_hint: Rect
     insufficient_texts: dict[str, list[str]] = {}  # idioma -> textos de saldo insuficiente
+    # Botón que cierra la ventana del mensaje (cualquier idioma); vacío = no se cierra.
+    message_dismiss_texts: list[str] = []
+    message_dismiss_hint: Rect | None = None  # dónde está ese botón si el OCR no lo lee (pista)
     spin_end: SpinTiming = SpinTiming()
     network_pattern: str | None = None  # regex de la petición de tirada; solo confirma
     # --- propio de B ---

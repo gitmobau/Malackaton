@@ -47,10 +47,14 @@ PROFILE = ProfileSpec(
     bet_up=Control(templates=[ASSETS / "bet_up.png"], hint=Rect(x=0.82, y=0.88, w=0.06, h=0.09)),
     # Tras una tirada sin premio, la barra inferior no muestra GANANCIA (comprobado en la demo, 15-oct).
     win_hidden_when_zero=True,
+    # Real en betsson.es (15-oct, cuenta sin saldo): ventana "MENSAJE" con "Fondos insuficientes para
+    # realizar esta apuesta. Haga un depósito en su cuenta o reduzca el nivel de la apuesta." + ACEPTAR.
     insufficient_texts={
-        "es": ["SALDO INSUFICIENTE", "FONDOS INSUFICIENTES", "NO TIENES SUFICIENTE"],
-        "en": ["INSUFFICIENT BALANCE", "INSUFFICIENT FUNDS", "NOT ENOUGH"],
+        "es": ["FONDOS INSUFICIENTES", "SALDO INSUFICIENTE", "NO TIENES SUFICIENTE"],
+        "en": ["INSUFFICIENT FUNDS", "INSUFFICIENT BALANCE", "NOT ENOUGH"],
     },
+    message_dismiss_texts=["ACEPTAR", "ACCEPT", "OK"],
+    message_dismiss_hint=Rect(x=0.42, y=0.53, w=0.16, h=0.10),  # ACEPTAR, centro de la ventana MENSAJE
     # Calibrado en la demo (15-oct): en reposo las burbujas dan 0.03-0.07; girando, 0.17-0.45.
     spin_end=SpinTiming(diff_threshold=0.12, stable_frames=2, start_timeout_s=8, timeout_s=40),
     network_pattern=r"/gs2c/(ge/v\d+/)?gameService",
