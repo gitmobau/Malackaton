@@ -12,7 +12,7 @@ import random
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import parse_qsl, urlparse
@@ -30,7 +30,7 @@ from betsson.site import selectors as sel
 from betsson.site.credentials import Credentials, credentials_for
 from betsson.site.pacing import Pacer, human_pause, typing_delay_ms
 from betsson.site.session import BrowserSession
-from betsson.site.tracing import NoTrace, TraceControl, trace_paused
+from betsson.site.tracing import NoTrace, TraceControl
 
 log = logging.getLogger(__name__)
 
@@ -251,23 +251,25 @@ class BetssonSite:
         self._mask(username)
         self._mask(password)
 
-        # La traza solo se reanuda con el formulario fuera del DOM o con los campos vacíos, falle lo que falle.
-        with trace_paused(self._trace):
-            try:
-                # Como una persona: clic en el campo, tecla a tecla, pausa, siguiente campo, pausa y clic en enviar.
-                self._human_click(username)
-                username.press_sequentially(creds.username, delay=typing_delay_ms())
-                human_pause()
-                self._human_click(password)
-                password.press_sequentially(creds.password, delay=typing_delay_ms())
-                human_pause()
-                self._human_click(self.page.locator(sel.LOGIN_SUBMIT))
-                password.wait_for(state="detached", timeout=DEFAULT_TIMEOUT_MS)
-            except PlaywrightError:
-                error = self._visible_error().replace(creds.username, "<usuario>")
-                self.last_login_error = f"login rechazado o sin respuesta en {self.market.id}: {error}"
-            finally:
-                self._clear_fields(username, password)
+        # La traza se DETIENE aquí y no se reanuda: con sesión iniciada, la web pide a su API el perfil del
+        # cliente (/currentcustomer: dirección, documento, KYC), y la traza guarda las respuestas de red.
+        # Las evidencias a partir de aquí son capturas de pantalla, no trazas.
+        self._trace.pause()
+        try:
+            # Como una persona: clic en el campo, tecla a tecla, pausa, siguiente campo, pausa y clic en enviar.
+            self._human_click(username)
+            username.press_sequentially(creds.username, delay=typing_delay_ms())
+            human_pause()
+            self._human_click(password)
+            password.press_sequentially(creds.password, delay=typing_delay_ms())
+            human_pause()
+            self._human_click(self.page.locator(sel.LOGIN_SUBMIT))
+            password.wait_for(state="detached", timeout=DEFAULT_TIMEOUT_MS)
+        except PlaywrightError:
+            error = self._visible_error().replace(creds.username, "<usuario>")
+            self.last_login_error = f"login rechazado o sin respuesta en {self.market.id}: {error}"
+        finally:
+            self._clear_fields(username, password)
         if self.last_login_error:
             log.warning("%s", self.last_login_error)
             self.screenshot("login_rejected")
@@ -569,16 +571,20 @@ class BetssonSite:
             if "session_limits" not in notes and self._accept_session_limits(evidence):
                 notes.add("session_limits")
                 continue
-            if "existing_session" not in notes and self._existing_game_session_notice():
-                notes.add("existing_session")  # es un motivo, no un fallo: se sigue lanzando el juego
-                evidence.append(self.screenshot("existing_game_session"))
             play = self.page.get_by_role("button", name=sel.PLAY_BUTTON).filter(visible=True)
             if "play_clicked" not in notes and play.count():
                 play.first.click()
                 notes.add("play_clicked")
                 continue
             iframe = self._find_game_iframe()
+            if iframe is not None and "session_limits" not in notes and self._session_limits_pending():
+                continue  # el diálogo se pinta después del iframe: se atiende en la siguiente vuelta
             if iframe is not None:
+                # Sin diálogo de límites en todo el lanzamiento: si Betsson avisa de una sesión de juego ya
+                # activa, es un motivo (no un fallo). Se mira aquí, no antes, para no confundirlo con el diálogo.
+                if "session_limits" not in notes and self._existing_game_session_notice():
+                    notes.add("existing_session")
+                    evidence.append(self.screenshot("existing_game_session"))
                 return iframe, notes
             try:
                 self.page.wait_for_event("framenavigated", timeout=_POLL_MS)
@@ -618,6 +624,18 @@ class BetssonSite:
             self.session.record_game_session()
         log.info("límites de sesión aceptados (los más prudentes de la configuración)")
         return True
+
+    def _session_limits_pending(self, wait_ms: int = 3_000) -> bool:
+        """¿Aparece el diálogo de límites en breve? (señal: su título visible; tope corto)."""
+        cfg = self.market.site.session_limits
+        if cfg is None:
+            return False
+        title = self.page.get_by_text(re.compile(cfg.title_pattern, re.I)).filter(visible=True).first
+        try:
+            title.wait_for(state="visible", timeout=wait_ms)
+            return True
+        except PlaywrightError:
+            return False
 
     def _existing_game_session_notice(self) -> bool:
         cfg = self.market.site.session_limits
@@ -697,9 +715,15 @@ class BetssonSite:
         if "session_limits" in notes:
             return "real", "Betsson pidió límites de sesión del regulador antes de lanzar (solo se piden con dinero real)"
         accepted = self.session.game_session_at if self.session else None
-        if accepted is not None and accepted.date() == datetime.now().date():
-            return "real", (
-                f"sesión de juego del regulador activa desde las {accepted:%H:%M} (límites aceptados en una "
-                "ejecución anterior; solo existen con dinero real)"
-            )
+        logged = self.session.logged_in_at if self.session else None
+        limits = self.market.site.session_limits
+        if accepted is not None and limits is not None:
+            fresh = datetime.now() - accepted < timedelta(hours=limits.session_hours)
+            after_login = logged is None or accepted >= logged
+            if fresh and after_login:
+                seen = " y Betsson avisa de la sesión activa" if "existing_session" in notes else ""
+                return "real", (
+                    f"sesión de juego del regulador activa desde las {accepted:%H:%M} (límites aceptados en una "
+                    f"ejecución anterior, válidos {limits.session_hours:g} h; solo existen con dinero real){seen}"
+                )
         return "unknown", "ni la URL ni el lanzamiento indican el modo"

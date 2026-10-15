@@ -14,7 +14,9 @@ import argparse
 import logging
 import re
 import time
+from datetime import datetime
 
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import sync_playwright
 
 from betsson.market import load_market
@@ -38,8 +40,9 @@ def _check(session: BrowserSession, *, record: bool) -> bool:
             ok = site.login()  # en modo "session" solo comprueba; nunca escribe credenciales
         finally:
             page.close()
-    if ok and record and session.logged_in_at is None:
-        session.record_login()
+    previous = session.logged_in_at
+    if ok and record and (previous is None or previous.date() != datetime.now().date()):
+        session.record_login()  # login nuevo: también olvida la sesión de juego anterior
     return ok
 
 
@@ -54,8 +57,11 @@ def _peek(session: BrowserSession) -> bool:
             for page in context.pages:
                 if not page.url.startswith(market.origin):
                     continue
-                logged = page.get_by_role("button", name=balance_button).filter(visible=True).count() > 0
-                offered = page.get_by_text(sel.LOGIN_OPEN).filter(visible=True).count() > 0
+                try:
+                    logged = page.get_by_role("button", name=balance_button).filter(visible=True).count() > 0
+                    offered = page.get_by_text(sel.LOGIN_OPEN).filter(visible=True).count() > 0
+                except PlaywrightError:  # la pestaña está navegando (p. ej. justo al entrar): se mira en la siguiente
+                    continue
                 if logged and not offered:
                     return True
     return False
@@ -70,7 +76,8 @@ def _logout(session: BrowserSession) -> bool:
             ok = site.logout()
         finally:
             page.close()
-    session.clear()
+    if ok:
+        session.clear()
     return ok
 
 

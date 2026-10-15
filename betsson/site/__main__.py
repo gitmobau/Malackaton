@@ -92,13 +92,11 @@ def _automated(p: Playwright, market: Market, out: Path, args: argparse.Namespac
 def _session(p: Playwright, market: Market, out: Path, args: argparse.Namespace) -> int:
     session = BrowserSession(market, args.account)
     _browser, page = session.connect(p)
-    trace = SegmentedTrace(page.context, out)
-    site = BetssonSite(page, market, account=args.account, login_mode="session", session=session,
-                       evidence_dir=out, trace=trace)
+    # Sin traza: con la sesión iniciada la red trae datos personales del cliente. Evidencias = capturas.
+    site = BetssonSite(page, market, account=args.account, login_mode="session", session=session, evidence_dir=out)
     try:
         return _guarded(site, out, args)
     finally:
-        trace.close()
         page.close()  # solo nuestra pestaña: Chrome y la sesión siguen vivos
 
 

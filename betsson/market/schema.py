@@ -70,6 +70,9 @@ class SessionLimitsConfig(_Strict):
     time_option_pattern: str = Field(min_length=1, description="Botón de tiempo de juego a pulsar.")
     loss_option_pattern: str = Field(min_length=1, description="Botón de límite de pérdidas a pulsar.")
     submit_pattern: str = Field(min_length=1, description="Botón que confirma e inicia la sesión de juego.")
+    session_hours: float = Field(
+        default=0.25, gt=0, le=24, description="Duración de la sesión de juego que se elige (para saber si sigue activa)."
+    )
     existing_session_pattern: str | None = Field(
         default=None, description="Aviso de que ya hay una sesión de juego activa: se anota como motivo, no es FAIL."
     )

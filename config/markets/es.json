@@ -31,6 +31,7 @@
       "title_pattern": "l[ií]mite de tiempo de sesi[oó]n|tiempo de juego",
       "time_option_pattern": "^\\s*5 ?horas?\\s*$",
       "loss_option_pattern": "^\\s*25\\s*%",
+      "session_hours": 5,
       "submit_pattern": "^\\s*iniciar sesi[oó]n\\s*$",
       "existing_session_pattern": "ya (tienes|hay|existe) (una )?sesi[oó]n|sesi[oó]n (de juego )?(activa|en curso)"
     }
