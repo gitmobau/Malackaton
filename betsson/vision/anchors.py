@@ -27,6 +27,7 @@ class AnchoredValue:
     value_text: str  # texto en bruto del importe, con su símbolo si lo hay
     confidence: float
     strategy: str
+    value_box: TextBox  # caja donde está el importe (la de la etiqueta si es "inline")
 
 
 def has_number(text: str) -> bool:
@@ -81,18 +82,21 @@ def _distance_below(label: TextBox, box: TextBox) -> float | None:
 def _value_for(label: TextBox, alias_norm: str, boxes: list[TextBox]) -> AnchoredValue | None:
     inline = _strip_label(label.text, alias_norm)
     if has_number(inline):
-        return AnchoredValue(label, inline, label.score, "inline")
-    best: tuple[float, TextBox, str] | None = None
-    for box in boxes:
-        if box is label or not _is_bare_value(box.text):
-            continue
-        for strategy, dist in (("right", _distance_right(label, box)), ("below", _distance_below(label, box))):
-            if dist is not None and (best is None or dist < best[0]):
-                best = (dist, box, strategy)
-    if best is None:
-        return None
-    _, box, strategy = best
-    return AnchoredValue(label, box.text, min(label.score, box.score), strategy)
+        return AnchoredValue(label, inline, label.score, "inline", label)
+    values = [b for b in boxes if b is not label and _is_bare_value(b.text)]
+    # La misma fila manda: "debajo" solo cuenta si no hay nada a la derecha (las líneas apiladas
+    # como CRÉDITO/APUESTA tienen el valor de la siguiente justo debajo de la etiqueta).
+    for strategy, distance in (("right", _distance_right), ("below", _distance_below)):
+        scored = [(d, b) for b in values if (d := distance(label, b)) is not None]
+        if scored:
+            _, box = min(scored, key=lambda pair: pair[0])
+            return AnchoredValue(label, box.text, min(label.score, box.score), strategy, box)
+    return None
+
+
+def bare_values(boxes: list[TextBox]) -> list[TextBox]:
+    """Cajas que son solo un importe (empiezan por número o símbolo), de izquierda a derecha."""
+    return sorted((b for b in boxes if _is_bare_value(b.text)), key=lambda b: b.x0)
 
 
 def find_amount(

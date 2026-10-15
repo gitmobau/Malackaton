@@ -31,6 +31,17 @@ class TestAnclas:
         found = find_amount(boxes, ["SALDO"])
         assert found is not None and found.value_text == "1.234,56 €" and found.strategy == "below"
 
+    def test_lineas_apiladas_prefieren_la_misma_fila(self) -> None:
+        """CRÉDITO con su valor a la derecha y el de APUESTA justo debajo (caso real de la demo)."""
+        boxes = [
+            box("CRÉDITO", 225, 687, 317, 717),
+            box("99.998,00 €", 317, 689, 428, 722),
+            box("APUESTA", 220, 714, 319, 744),
+            box("2,00 €", 316, 716, 383, 748),
+        ]
+        found = find_amount(boxes, ["CRÉDITO"])
+        assert found is not None and found.value_text == "99.998,00 €" and found.strategy == "right"
+
     def test_tildes_y_mayusculas_dan_igual(self) -> None:
         found = find_amount([box("Crédito: 5,00 €", 0, 0, 100, 20)], ["CRÉDITO"])
         assert found is not None and found.value_text == "5,00 €"

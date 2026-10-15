@@ -48,26 +48,20 @@ def find_game_canvas(page, timeout_s: float = _LOAD_TIMEOUT_S):  # noqa: ANN001,
     raise TimeoutError("no aparece el canvas del juego")
 
 
-def wait_stable(source: PlaywrightCanvasSource, frames: int, timeout_s: float) -> np.ndarray:
+def wait_stable(
+    source: PlaywrightCanvasSource, frames: int, timeout_s: float, threshold: float = _STABLE_THRESHOLD
+) -> np.ndarray:
+    """Último frame tras `frames` comparaciones seguidas por debajo de `threshold` (o al agotar el tiempo)."""
     start = time.monotonic()
     previous = source.grab()
     stable = 0
     while time.monotonic() - start < timeout_s:
         current = source.grab()
-        stable = stable + 1 if change_ratio(previous, current) <= _STABLE_THRESHOLD else 0
+        stable = stable + 1 if change_ratio(previous, current) <= threshold else 0
         previous = current
         if stable >= frames:
             break
     return previous
-
-
-def wait_change(source: PlaywrightCanvasSource, reference: np.ndarray, timeout_s: float) -> np.ndarray | None:
-    start = time.monotonic()
-    while time.monotonic() - start < timeout_s:
-        frame = source.grab()
-        if change_ratio(reference, frame) > _STABLE_THRESHOLD:
-            return frame
-    return None
 
 
 class Recorder:
@@ -88,7 +82,7 @@ class Recorder:
         (self.out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def run(profile_name: str, out: Path, spins: int, channel: str | None) -> None:
+def run(profile_name: str, out: Path, spins: int, channel: str | None, until_win: bool = False) -> None:
     from playwright.sync_api import sync_playwright
 
     profile = get_profile(profile_name)
@@ -102,24 +96,32 @@ def run(profile_name: str, out: Path, spins: int, channel: str | None) -> None:
         canvas = find_game_canvas(page)
         source = PlaywrightCanvasSource(page, canvas)
         recorder.save("carga", source.grab())
-        recorder.save("inicio", wait_stable(source, frames=8, timeout_s=_LOAD_TIMEOUT_S))
 
         from betsson.game.eyes import GameEyes  # import tardío: GameEyes no hace falta para capturar la carga
 
+        # Sin parse_money (es del área A): aquí solo interesa el texto en bruto que ve el OCR.
         eyes = GameEyes(source, profile, lang="es", parse_money=lambda _t: None)
         dismissed = eyes.dismiss_intro()
-        recorder.save("reposo", wait_stable(source, frames=6, timeout_s=30), note=f"intro cerradas: {dismissed}")
+        threshold = profile.spin_end.diff_threshold
+        recorder.save("reposo", wait_stable(source, 3, 30, threshold), note=f"intro cerradas: {dismissed}")
 
         for i in range(1, spins + 1):
-            before = wait_stable(source, frames=6, timeout_s=30)
-            if eyes.locate_spin(before) is not None:
-                eyes.spin()
-            elif profile.spin_key:
-                source.press(profile.spin_key)
-            moving = wait_change(source, before, timeout_s=5)
-            if moving is not None:
-                recorder.save(f"girando_{i}", moving)
-            recorder.save(f"fin_{i}", wait_stable(source, frames=8, timeout_s=40), note="; ".join(eyes.notes))
+            started = eyes.spin()  # True solo si se VE que la tirada empieza
+            if started:
+                recorder.save(f"girando_{i}", source.grab())
+            end = eyes.wait_spin_end()
+            frame = source.grab()
+            win = eyes.read_win(frame).raw_text
+            summary = (
+                f"started={started} completed={end.completed} {end.duration_s}s {end.reason or ''}"
+                f" | credito='{eyes.read_balance(frame).raw_text}' apuesta='{eyes.read_bet(frame).raw_text}'"
+                f" ganancia='{win}' | {'; '.join(eyes.notes)}"
+            )
+            print(f"[tirada {i}] {summary}")
+            recorder.save(f"fin_{i}{'_ganancia' if win else ''}", frame, note=summary)
+            eyes.notes.clear()
+            if win and until_win:
+                break
         recorder.write_manifest({"profile": profile.name, "url": page.url.split("?")[0], "viewport": VIEWPORT})
         browser.close()
 
@@ -130,8 +132,9 @@ def main() -> None:
     parser.add_argument("--out", type=Path)
     parser.add_argument("--spins", type=int, default=6)
     parser.add_argument("--channel", default=None, help="'chrome' para usar el Chrome instalado")
+    parser.add_argument("--until-win", action="store_true", help="parar en la primera tirada con ganancia visible")
     args = parser.parse_args()
-    run(args.profile, args.out or Path("fixtures") / args.profile, args.spins, args.channel)
+    run(args.profile, args.out or Path("fixtures") / args.profile, args.spins, args.channel, args.until_win)
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ import numpy as np
 from betsson.game.contracts import Message, Money, ProviderUIChanged, Reading, SpinEnd
 from betsson.game.sources import FrameSource
 from betsson.profiles.base import AmountField, IntroScreen, ProviderProfile
-from betsson.vision.anchors import find_amount
+from betsson.vision.anchors import AnchoredValue, bare_values, find_amount
 from betsson.vision.diff import change_ratio
 from betsson.vision.ocr import TextBox, full_text, normalize, read_text
 from betsson.vision.template import find_template
@@ -28,6 +28,8 @@ MoneyParser = Callable[[str], Money | None]
 _UPSCALES: tuple[float, ...] = (1.0, 2.0)
 _MAX_INTRO_STEPS = 6
 _LOADING_TIMEOUT_S = 60.0
+_REREAD_UPSCALE = 3.0
+_TRUSTED_SCORE = 0.95  # por debajo de esta confianza del OCR, el importe se relee recortado
 
 
 class GameEyes:
@@ -93,15 +95,37 @@ class GameEyes:
                 evidence_path=evidence,
                 reason=f"inconclusive: no se ve la etiqueta de {field} ({', '.join(aliases[:4])})",
             )
-        money = self._parse_money(anchored.value_text)
-        reason = None if money is not None else f"inconclusive: importe ilegible '{anchored.value_text}'"
+        first = (anchored.value_text, self._parse_money(anchored.value_text))
+        if first[1] is not None and anchored.confidence >= _TRUSTED_SCORE:
+            text, money, reason = first[0], first[1], None
+        else:  # lectura dudosa o ilegible: se relee solo el importe y se exige que no contradiga a la primera
+            text, money, reason = _reconcile(first, self._reread_value(frame, anchored))
         return Reading(
-            raw_text=anchored.value_text,
+            raw_text=text,
             money=money,
             confidence=anchored.confidence if money is not None else 0.0,
             evidence_path=evidence,
             reason=reason,
         )
+
+    def _reread_value(self, frame: np.ndarray, anchored: AnchoredValue) -> tuple[str, Money | None] | None:
+        """Segunda lectura: solo el recorte del importe, ampliado. El OCR del frame entero corta mal a veces."""
+        box = anchored.value_box
+        height, width = frame.shape[:2]
+        # Margen vertical pequeño: en muchos juegos las líneas (saldo, apuesta) van pegadas.
+        y0, y1 = max(0, box.y0 - box.height // 6), min(height, box.y1 + box.height // 6)
+        x0 = max(0, (anchored.label.x1 if anchored.strategy == "inline" else box.x0) - box.height // 2)
+        x1 = min(width, box.x1 + box.height)
+        crop = frame[y0:y1, x0:x1]
+        if crop.size == 0:
+            return None
+        values = bare_values(read_text(crop, upscale=_REREAD_UPSCALE))
+        if not values:
+            return None
+        # La caja cuyo centro vertical queda más cerca del de la lectura original.
+        target_cy = box.cy - y0
+        text = min(values, key=lambda b: abs(b.cy - target_cy)).text
+        return (text, self._parse_money(text))
 
     # ---------- reconocimiento e inicio ----------
 
@@ -234,6 +258,23 @@ class GameEyes:
             if change_ratio(reference, frame) > threshold:
                 return frame
         return None
+
+
+def _reconcile(
+    first: tuple[str, Money | None], second: tuple[str, Money | None] | None
+) -> tuple[str, Money | None, str | None]:
+    """Combina las dos lecturas del importe. Si dan importes distintos, no se elige: es inconclusive."""
+    text1, money1 = first
+    if second is None:
+        return text1, money1, None if money1 else f"inconclusive: importe ilegible '{text1}'"
+    text2, money2 = second
+    if money1 and money2 and money1 != money2:
+        return text1, None, f"inconclusive: dos lecturas distintas '{text1}' y '{text2}'"
+    if money2:
+        return text2, money2, None
+    if money1:
+        return text1, money1, None
+    return text1, None, f"inconclusive: importe ilegible '{text1}' / '{text2}'"
 
 
 def _find_box(boxes: list[TextBox], text: str) -> TextBox | None:

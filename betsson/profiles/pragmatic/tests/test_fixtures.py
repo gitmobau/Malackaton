@@ -16,6 +16,13 @@ from betsson.vision.template import find_template
 
 FIXTURES = Path(__file__).resolve().parents[4] / "fixtures" / "pragmatic"
 GAME_FRAMES = ["02_reposo.png", "04_fin_1.png", "06_fin_2.png", "08_fin_3.png"]
+# Capturas con valores esperados distintos de 100.000 € (crédito, apuesta, ganancia o None si no se ve).
+EXPECTED = {
+    "10_girando.png": ("99998.00", "2.00", None),
+    "11_fin_tras_girar.png": ("99996.00", "2.00", None),
+    "12_fin_ocr_dificil.png": ("99996.00", "2.00", None),  # el OCR del frame entero lee '300969.96'
+    "13_fin_ganancia.png": ("99990.00", "2.00", "2.00"),
+}
 
 pytestmark = pytest.mark.unit
 
@@ -40,6 +47,17 @@ def test_lee_credito_y_apuesta(profile: ProviderProfile, name: str) -> None:
     balance, bet = eyes.read_balance(frame), eyes.read_bet(frame)
     assert balance.money == Money(amount=Decimal("100000.00"), currency="EUR"), balance
     assert bet.money == Money(amount=Decimal("2.00"), currency="EUR"), bet
+
+
+@pytest.mark.parametrize("name", sorted(EXPECTED))
+def test_lee_credito_apuesta_y_ganancia(profile: ProviderProfile, name: str) -> None:
+    frame = read_image(FIXTURES / name)
+    eyes = GameEyes(FileFrameSource([frame]), profile, "es", parse_eur_es)
+    readings = (eyes.read_balance(frame), eyes.read_bet(frame), eyes.read_win(frame))
+    got = tuple(str(r.money.amount) if r.money else None for r in readings)
+    assert got == EXPECTED[name], readings
+    if EXPECTED[name][2] is None:
+        assert readings[2].reason and readings[2].reason.startswith("inconclusive")
 
 
 @pytest.mark.parametrize("name", GAME_FRAMES)
