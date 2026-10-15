@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "run_id": "fallo-provocado-20261015-1929",
+  "market": "es",
+  "scenario": "S1",
+  "provider": "pragmatic",
+  "game": "big-bass-splash",
+  "started_at": "2026-10-15T17:30:08.853263Z",
+  "finished_at": "2026-10-15T17:34:13.715047Z",
+  "results": [
+    {
+      "id": "login_ok",
+      "status": "PASS",
+      "reason": "sesión de jugador válida (login asistido por una persona a las 15:36)",
+      "failure_kind": null,
+      "expected": null,
+      "observed": "asistido",
+      "evidence": []
+    },
+    {
+      "id": "real_play",
+      "status": "PASS",
+      "reason": "juego abierto en Real Play (sesión de juego del regulador activa desde las 17:15 (límites aceptados en una ejecución anterior, válidos 5 h; solo existen con dinero real))",
+      "failure_kind": null,
+      "expected": null,
+      "observed": "real",
+      "evidence": [
+        "game_opened.png"
+      ]
+    },
+    {
+      "id": "currency_matches_market",
+      "status": "PASS",
+      "reason": "5 importes visibles en EUR",
+      "failure_kind": null,
+      "expected": "EUR",
+      "observed": "EUR",
+      "evidence": [
+        "003_read_balance.png",
+        "002_read_bet.png",
+        "010_read_balance.png",
+        "betsson_balance.png",
+        "betsson_balance.png"
+      ]
+    },
+    {
+      "id": "betsson_balance_before",
+      "status": "PASS",
+      "reason": "saldo de Betsson antes leído: 99.50 EUR («99,50 €»)",
+      "failure_kind": null,
+      "expected": null,
+      "observed": "99.50 EUR",
+      "evidence": [
+        "betsson_balance.png"
+      ]
+    },
+    {
+      "id": "wager_read",
+      "status": "PASS",
+      "reason": "apuesta visible leído: 0.10 EUR («0,10 €»)",
+      "failure_kind": null,
+      "expected": null,
+      "observed": "0.10 EUR",
+      "evidence": [
+        "002_read_bet.png"
+      ]
+    },
+    {
+      "id": "spin_started",
+      "status": "PASS",
+      "reason": "se vio empezar la tirada (cambio visual tras pulsar)",
+      "failure_kind": null,
+      "expected": null,
+      "observed": null,
+      "evidence": []
+    },
+    {
+      "id": "spin_completed",
+      "status": "PASS",
+      "reason": "la tirada terminó en 12.7 s (pantalla estable)",
+      "failure_kind": null,
+      "expected": null,
+      "observed": null,
+      "evidence": [
+        "006_spin_end.png"
+      ]
+    },
+    {
+      "id": "payout_read",
+      "status": "PASS",
+      "reason": "ganancia leído: 0 EUR («»)",
+      "failure_kind": null,
+      "expected": null,
+      "observed": "0 EUR",
+      "evidence": [
+        "007_read_win.png"
+      ]
+    },
+    {
+      "id": "ingame_balance_consistent",
+      "status": "FAIL",
+      "reason": "no cuadra: 99.50 EUR − 0.10 EUR + 0 EUR = 99.30 EUR; leído 99.40 EUR; diferencia 0.10 (tolerancia 0.01)",
+      "failure_kind": "integration",
+      "expected": "99.30 EUR",
+      "observed": "99.40 EUR",
+      "evidence": [
+        "003_read_balance.png",
+        "002_read_bet.png",
+        "007_read_win.png",
+        "010_read_balance.png"
+      ]
+    },
+    {
+      "id": "betsson_balance_reconciles",
+      "status": "FAIL",
+      "reason": "no cuadra: 99.50 EUR − 0.10 EUR + 0 EUR = 99.30 EUR; leído 99.40 EUR; diferencia 0.10 (tolerancia 0.01)",
+      "failure_kind": "integration",
+      "expected": "99.30 EUR",
+      "observed": "99.40 EUR",
+      "evidence": [
+        "betsson_balance.png",
+        "002_read_bet.png",
+        "007_read_win.png",
+        "betsson_balance.png"
+      ]
+    },
+    {
+      "id": "wager_is_used_wager",
+      "status": "PASS",
+      "reason": "coincide: apuesta mostrada 0.10 EUR; descontado 0.10 EUR; apuesta tras la tirada 0.10 EUR",
+      "failure_kind": null,
+      "expected": "0.10 EUR",
+      "observed": "0.10 EUR",
+      "evidence": [
+        "003_read_balance.png",
+        "007_read_win.png",
+        "010_read_balance.png",
+        "002_read_bet.png",
+        "011_read_bet.png"
+      ]
+    }
+  ],
+  "warnings": [
+    "login asistido por una persona: el resto de la ejecución es automática",
+    "sin huella de referencia del juego (se crea con la primera ejecución en PASS)"
+  ],
+  "error": null,
+  "evidence": [],
+  "readings": [
+    {
+      "name": "Saldo de Betsson antes",
+      "source": "betsson",
+      "raw_text": "99,50 €",
+      "value": "99.50 EUR",
+      "confidence": 1.0,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "betsson_balance.png"
+    },
+    {
+      "name": "Apuesta",
+      "source": "juego",
+      "raw_text": "0,10 €",
+      "value": "0.10 EUR",
+      "confidence": 0.99943,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "002_read_bet.png"
+    },
+    {
+      "name": "Saldo del juego antes",
+      "source": "juego",
+      "raw_text": "99,50 €",
+      "value": "99.50 EUR",
+      "confidence": 0.99638,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "003_read_balance.png"
+    },
+    {
+      "name": "Ganancia",
+      "source": "juego",
+      "raw_text": "",
+      "value": "0 EUR",
+      "confidence": 0.96643,
+      "currency_seen": false,
+      "reason": "sin etiqueta de ganancia con saldo y apuesta visibles: el perfil la oculta cuando es 0",
+      "evidence": "007_read_win.png"
+    },
+    {
+      "name": "Saldo del juego después",
+      "source": "juego",
+      "raw_text": "99,40 €",
+      "value": "99.40 EUR",
+      "confidence": 0.99343,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "010_read_balance.png"
+    },
+    {
+      "name": "Apuesta tras la tirada",
+      "source": "juego",
+      "raw_text": "0,10 €",
+      "value": "0.10 EUR",
+      "confidence": 0.9984,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "011_read_bet.png"
+    },
+    {
+      "name": "Saldo de Betsson después",
+      "source": "betsson",
+      "raw_text": "99,40 €",
+      "value": "99.40 EUR",
+      "confidence": 1.0,
+      "currency_seen": true,
+      "reason": null,
+      "evidence": "betsson_balance.png"
+    }
+  ],
+  "missing_checks": [],
+  "verdict": "FAIL",
+  "outcome": "FAIL",
+  "provider_ui_changed": false
+}
