@@ -73,7 +73,7 @@ def test_first_good_run_creates_baseline(tmp_path: Path) -> None:
     run = _run(tmp_path / "r1", store, game_frame(), "r1")
     assert run.outcome == "PASS"
     assert any("creada" in w for w in run.warnings)
-    assert store.load("es", "fake-slot") is not None
+    assert store.load("es", "fake-slot-S1") is not None
 
 
 def test_changed_game_warns_with_before_and_after_but_keeps_verdict(tmp_path: Path) -> None:
@@ -92,7 +92,7 @@ def test_failed_run_does_not_replace_baseline(tmp_path: Path) -> None:
     _run(tmp_path / "r1", store, game_frame("a"), "r1")
     bad = _run(tmp_path / "r2", store, game_frame("b"), "r2", betsson_after="100.00")
     assert bad.outcome == "FAIL"
-    saved, _ = store.load("es", "fake-slot")
+    saved, _ = store.load("es", "fake-slot-S1")
     assert saved.run_id == "r1"
 
 
@@ -126,3 +126,24 @@ def test_different_canvas_shape_is_not_comparable(tmp_path: Path) -> None:
     narrow = game_frame()[:, :700]
     warnings, evidence = check_drift(store, narrow, fp(narrow), tmp_path / "out", update=False)
     assert any("no comparable" in w for w in warnings) and evidence == ()
+
+
+
+def test_s1_and_s2_have_separate_baselines(tmp_path: Path) -> None:
+    """Run real: S2 (saldo 0,00) se comparó con la huella de S1 (99,70) y dio un falso aviso."""
+    from tests.test_scenarios import run_s2
+
+    store = BaselineStore(tmp_path / "baselines")
+    _run(tmp_path / "s1", store, game_frame("a"), "r1")
+    registry = FakeRegistry()
+    handle = FakeGameHandle(iframe_url=URL, frame=game_frame("b"))
+    from betsson.core import Message
+    msg = Message(text="Fondos insuficientes", lang_detected="es", matches_insufficient=True)
+    site = FakeBetssonSite([reading("0.00"), reading("0.00")], tmp_path / "s2", handle=handle)
+    eyes = FakeGameEyes(registry.profile, tmp_path / "s2", [reading("0.00"), reading("0.00")], reading("0.10"),
+                        message=msg, spin_starts=False)
+    run = run_scenario(market=FakeMarket(), scenario=Scenario.S2, site=site, registry=registry,
+                       eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path / "s2", run_id="r2",
+                       baselines=store)
+    assert not any("ha cambiado" in w for w in run.warnings)
+    assert store.load("es", "fake-slot-S2") is not None
