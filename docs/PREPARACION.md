@@ -90,6 +90,12 @@ Las capturas están en `docs/recon/`.
 - `robots.txt`: `Crawl-delay: 2`.
 - Supuesto: la estructura de .com y .pe será parecida porque es la misma plataforma, pero **está por verificar**.
 
+### Hallazgos con la cuenta real (15-oct, 14:08)
+- Login manual con la cuenta con saldo: correcto, saldo 100,00 € (EUR).
+- El primer login automatizado (13:57) recibió "Actualiza la página y vuelve a intentarlo en breve. La resolución puede demorar hasta 10 minutos." No hubo captcha. Causa probable: detección de automatización o bloqueo temporal (pregunta 18b).
+- **Diálogo de límites de sesión de la DGOJ** antes de abrir el juego: tiempo de juego (15 min a 5 h) y límite de pérdidas (del 25 al 100 %), con un botón "Iniciar sesión". Mientras dura la sesión no se puede crear otra. `open_game` lo gestiona con valores configurables por mercado (`session_limits`), y su captura va en las evidencias (pregunta 18c).
+- URL de juego: `/casino/<categoría>/<slug>?gameAction=play`.
+
 ## 3. Arquitectura propuesta
 
 ```
@@ -126,6 +132,7 @@ Principios:
   - **Anclas semánticas, no posiciones**: localizar los importes por su etiqueta visible ("BALANCE"/"CREDIT"/"SALDO", "BET"/"APUESTA", "WIN"/"GANANCIA") con OCR. El botón de girar se busca con plantillas a varias escalas o con visión. Las zonas en fracciones son solo una pista inicial.
   - **Autocalibración**: si el perfil no encuentra algo, se recalibra en esa misma ejecución (OCR de etiquetas, plantillas o `generic-vision`) y deja anotado qué cambió.
   - **Detección de deriva**: se guarda una huella de referencia por juego (hash perceptual de las pantallas clave, URL y versión de los recursos del iframe). Si cambia, el informe dice **"el juego del proveedor ha cambiado desde la última ejecución"**, con capturas antes y después.
+  - **Decisión del 15-oct (cerrada)**: proveedor **desconocido** → `ProviderRegistry.resolve()` devuelve `generic-vision` (sin excepción). Proveedor **conocido** cuya interfaz ya no reconoce su perfil → el registro de perfiles (`ensure_recognized()`) lanza `ProviderUIChanged`, no `GameEyes`.
   - **Distinguir la causa**: `PROVIDER_UI_CHANGED` (el perfil no reconoce el juego: aviso para mantenerlo, comprobación no concluyente) frente a fallo de integración (saldo que no cuadra, tirada no rechazada…): **FAIL real**.
   - **Test de resistencia**: se pasa el perfil contra capturas "mutadas" (desplazadas, a otra escala, recoloreadas) para demostrar que no se rompe.
 - **Ver como un jugador**: la prueba principal es lo que se ve (OCR o visión de BALANCE, BET, WIN, del mensaje y de la moneda). La red de Pragmatic y el monedero de Betsson **solo confirman**: dan bonus, pero nunca sustituyen a la pantalla.
@@ -251,7 +258,8 @@ Con cada "Nueva info": cambiar las incógnitas, cerrar las decisiones que se pue
 - 15-oct, v0.1: plan de preparación genérico (24 h, sin bases).
 - 15-oct, v0.2: VPN obligatoria (lo dice la organización).
 - 15-oct, v1.0: llega el PDF del reto. Login, Real Play, Pragmatic, 2 escenarios × 2 mercados, GitHub Actions y criterios de evaluación. Desarrollo hasta las 20:00. Oracle disponible.
-- 15-oct, **v1.6**: migración al portátil de Alejandro (más RAM y CPU) con la misma ruta `D:\MAIKI\Malackathon`; un `handoff/<X>.md` por área y scripts en `coordinacion/`. Runner de CI en el portátil de Alejandro; rapidocr v3.
+- 15-oct, **v1.7**: decisión cerrada: proveedor desconocido → `generic-vision`; deriva de un proveedor conocido → `ProviderUIChanged` desde el registro de perfiles.
+- 15-oct, v1.6: migración al portátil de Alejandro (más RAM y CPU) con la misma ruta `D:\MAIKI\Malackathon`; un `handoff/<X>.md` por área y scripts en `coordinacion/`. Runner de CI en el portátil de Alejandro; rapidocr v3.
 - 15-oct, v1.5: todo en un solo portátil (Maiki) con un worktree de git por área y Remote Control; `.venv` compartido; runner de CI también en ese portátil.
 - 15-oct, v1.4: áreas asignadas (A Maiki, B Alejandro, C Migue, D Guilli). **Stack cambiado a Python** (el repo ya estaba preparado; mejor OCR y visión). Ramas por área + PR. `CLAUDE.md` fusionado con el original del repo.
 - 15-oct, v1.3: solo betsson.es en real, pero **adaptable a todos los mercados** → configuración por mercado validada, `parseMoney` genérico, textos por idioma, `com` y `pe` configurados y probados con capturas.

@@ -1,0 +1,60 @@
+"""Contratos del comprobador (área C, dueño único). Los demás importan de aquí."""
+from betsson.core.errors import PROVIDER_UI_CHANGED, GameOpenError, ProviderUIChanged
+from betsson.core.ids import SCENARIO_CHECKS, CheckId, Scenario
+from betsson.core.interfaces import (
+    BetssonSite,
+    BetTarget,
+    EvidencePath,
+    GameEyes,
+    GameEyesFactory,
+    GameField,
+    GameHandle,
+    IntroScreen,
+    MarketContext,
+    Message,
+    PlayMode,
+    ProviderProfile,
+    ProviderRegistry,
+    Reading,
+    Rect,
+    SpinEnd,
+    SpinEndSignal,
+)
+from betsson.core.money import CurrencyMismatch, Money
+from betsson.core.interfaces import INCONCLUSIVE_PREFIX
+from betsson.core.results import UI_CHANGED_PREFIX, CheckResult, FailureKind, Outcome, RunResult, Status
+
+__all__ = [
+    "PROVIDER_UI_CHANGED",
+    "ProviderUIChanged",
+    "GameOpenError",
+    "SCENARIO_CHECKS",
+    "CheckId",
+    "Scenario",
+    "BetssonSite",
+    "BetTarget",
+    "EvidencePath",
+    "GameEyesFactory",
+    "GameEyes",
+    "GameField",
+    "GameHandle",
+    "IntroScreen",
+    "MarketContext",
+    "Message",
+    "PlayMode",
+    "ProviderProfile",
+    "ProviderRegistry",
+    "Reading",
+    "Rect",
+    "SpinEnd",
+    "SpinEndSignal",
+    "CurrencyMismatch",
+    "Money",
+    "INCONCLUSIVE_PREFIX",
+    "UI_CHANGED_PREFIX",
+    "Outcome",
+    "CheckResult",
+    "FailureKind",
+    "RunResult",
+    "Status",
+]

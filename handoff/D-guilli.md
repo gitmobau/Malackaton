@@ -42,9 +42,21 @@ Estado a 15-oct, al migrar al portátil de Alejandro. Rama `feat/D-infra`.
 - **`gh` portable** en el portátil de Maiki: `D:\DevTools\gh\bin\gh.exe`, con sesión de la cuenta `gitmobau`, que es admin del repo.
   - Para cerrar esa sesión en el portátil de Maiki: `gh auth logout`.
 
+## Actualización (ya en el portátil de Alejandro)
+- PR #2 fusionado en `main` (67a0846). El README ya dice "portátil de Alejandro".
+- El venv compartido funciona aquí: `pytest -m unit` da 10 tests en verde. `gh` está en `C:\Program Files\GitHub CLI`, con la cuenta `gitmobau`.
+- **Runner registrado y online**:
+  - Nombre `portatil-alejandro`, en `D:\DevTools\actions-runner` (v2.338.0).
+  - Etiquetas `self-hosted, Windows, X64, betsson-es`.
+  - Arrancado con `run.cmd` en una ventana minimizada, no como servicio.
+  - Si se cierra esa ventana o se reinicia el portátil, el runner se cae. Para volver a arrancarlo: `start "runner" /min cmd /c "D:\DevTools\actions-runner\run.cmd"`.
+  - Arranque automático: **NO configurado**. El clasificador de permisos bloqueó editar `unidad-D.cmd` (Startup) por ser una persistencia. Lo tiene que añadir una persona (ver la sección CI del README).
+- CODEOWNERS: `* @gitmobau` (cuenta compartida); el reparto por áreas queda en comentarios. El README tiene un ejemplo de `gh workflow run` para la demo.
+- Pasos 1 y 2 hechos. Sigue el 3.
+
 ## Siguientes pasos (en orden)
-1. Corregir en el README (sección CI) "portátil de Maiki" → "portátil de Alejandro". Que el equipo fusione el PR #2.
-2. Registrar el runner en el portátil de Alejandro (ver abajo).
+1. ~~Corregir en el README "portátil de Maiki" → "portátil de Alejandro" y fusionar el PR #2.~~ Hecho.
+2. ~~Registrar el runner en el portátil de Alejandro.~~ Hecho.
 3. Crear los secretos en GitHub (ver abajo) cuando lleguen las cuentas.
 4. Lanzar a mano *Actions → Validación de juegos → Run workflow* (mercados: `es`) y comprobar que el artifact `evidencias-es-*` se publica.
 5. Rellenar `.github/CODEOWNERS` con los usuarios de GitHub de los cuatro (pedírselos al equipo).
