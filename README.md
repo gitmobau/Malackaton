@@ -78,7 +78,7 @@ avisa al final.
 
 Workflow `.github/workflows/validacion.yml` ("Validación de juegos"):
 - **Tests `unit`** (sin red): en los runners de GitHub, en cada PR y en cada push a `main`.
-- **Job `real`** (entra en Betsson): **solo a mano**, en Actions → *Validación de juegos* → *Run workflow*, indicando los mercados (por defecto `es`; `com` y `pe` están configurados pero desactivados por falta de cuenta). Se ejecuta en el runner propio del portátil de Maiki, porque los runners de GitHub tienen IP de EE. UU. y Betsson los geobloquea.
+- **Job `real`** (entra en Betsson): **solo a mano**, en Actions → *Validación de juegos* → *Run workflow*, indicando los mercados (por defecto `es`; `com` y `pe` están configurados pero desactivados por falta de cuenta). Se ejecuta en el runner propio del portátil de Alejandro, porque los runners de GitHub tienen IP de EE. UU. y Betsson los geobloquea.
 - El job real usa **Chrome del sistema** (`--browser-channel chrome`): con él no salió captcha en el reconocimiento.
 - El runner lleva las etiquetas `self-hosted, windows, betsson-es` y **se arranca con `run.cmd` en una terminal, no como servicio**. Un servicio no tiene escritorio y el navegador visible (`--headed`) falla; el workflow lo comprueba.
 - Secretos en *Settings → Secrets → Actions*: `BETSSON_<MERCADO>_USERNAME` y `BETSSON_<MERCADO>_PASSWORD` (y `..._EMPTY_...` para el escenario 2). Mismos nombres que en `.env.example`.

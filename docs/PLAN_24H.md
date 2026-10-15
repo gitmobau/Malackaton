@@ -13,7 +13,7 @@
 | **A, Betsson web y mercados**: **Maiki** (portátil del coordinador) | Cookies, login, saldo de Betsson, búsqueda y apertura del juego en Real Play. **Multimercado**: esquema de configuración, `es`/`com`/`pe`, `parse_money` y sus tests. **Coordinación**: mantiene `docs/` al día | `betsson/site/`, `betsson/market/`, `config/markets/`, `docs/` |
 | **B, ojos sobre el juego y proveedores**: **Alejandro** | Motor genérico (OCR, comparación de imágenes, plantillas, visión con IA opcional), **perfiles de proveedor enchufables** (Pragmatic primero, después `generic-vision` y un segundo proveedor), detección de la tirada y de su fin, mensaje de saldo insuficiente | `betsson/game/`, `betsson/vision/`, `betsson/profiles/`, `fixtures/<proveedor>/` |
 | **C, escenarios e informe**: **Migue** | Contratos, comprobaciones, regla del saldo, `results.json`, informe HTML, evidencias | `betsson/core/` (contratos: dueño único), `betsson/checks/`, `betsson/report/`, `tests/` |
-| **D, CI e infraestructura**: **Guilli** | Esqueleto, workflow, runner propio en España (en el portátil de Maiki, arrancado en una terminal con `run.cmd` y **no como servicio de Windows**, porque el navegador visible necesita escritorio; lanzar la CI cuando A y B no estén usando el navegador), secretos, Oracle, Pages, README y demo | raíz, `.github/`, `requirements.txt`, `pytest.ini`, `setup-portatil.ps1` |
+| **D, CI e infraestructura**: **Guilli** | Esqueleto, workflow, runner propio en España (en el portátil de Alejandro, arrancado en una terminal con `run.cmd` y **no como servicio de Windows**, porque el navegador visible necesita escritorio; lanzar la CI cuando A y B no estén usando el navegador), secretos, Oracle, Pages, README y demo | raíz, `.github/`, `requirements.txt`, `pytest.ini`, `setup-portatil.ps1` |
 
 Reglas:
 - **Extensibilidad**: la palabra "pragmatic" solo puede aparecer dentro de `profiles/pragmatic/` y `fixtures/pragmatic/`. Escenarios y comprobaciones hablan solo con `ProviderProfile`.
@@ -22,7 +22,7 @@ Reglas:
 
 ## Modo de trabajo: un solo portátil (decisión del 15-oct)
 
-Las 4 sesiones de Claude corren en **el portátil de Maiki**, una por área, cada una en **su propio worktree de git** (misma historia, carpeta y rama distintas). Cada miembro se conecta a su sesión con **Remote Control** (`/remote-control`). Si nos atascamos (CPU, límites de uso, navegadores), se pasa un área a un segundo portátil con el mismo repo.
+Las 4 sesiones de Claude corren en **el portátil de Alejandro** (migrado desde el de Maiki el 15-oct por RAM y CPU; ver `coordinacion/README.md`), una por área, cada una en **su propio worktree de git** (misma historia, carpeta y rama distintas). Cada miembro se conecta a su sesión con **Remote Control** (`/remote-control`). Si nos atascamos (CPU, límites de uso, navegadores), se pasa un área a un segundo portátil con el mismo repo.
 
 | Área | Carpeta (worktree) | Rama |
 |---|---|---|

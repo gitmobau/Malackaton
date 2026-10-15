@@ -196,12 +196,12 @@ Principios:
 | Resultado | `results.json` con PASS/FAIL por comprobación, escenario y mercado, más el informe HTML |
 | Apuesta | La mínima |
 | VPN | **No se usa** (cuentas españolas). Se instala solo si algún mercado lo exige más tarde |
-| Runner de CI | **Propio en España**: el portátil de Maiki como runner de GitHub Actions; Oracle (región Madrid) si se activa a tiempo |
-| Modo de trabajo | **Un solo portátil (el de Maiki)**: 4 sesiones de Claude, una por área, cada una en su worktree de git, con Remote Control para que cada miembro se conecte. Si hay atasco, un área pasa a un segundo portátil |
+| Runner de CI | **Propio en España**: el portátil de Alejandro como runner de GitHub Actions; Oracle (región Madrid) si se activa a tiempo |
+| Modo de trabajo | **Un solo portátil (el de Alejandro; antes el de Maiki)**: 4 sesiones de Claude, una por área, cada una en su worktree de git, con Remote Control para que cada miembro se conecte. Si hay atasco, un área pasa a un segundo portátil |
 | Oracle | Pedir **ya** una cuenta (un miembro con correo `@uma.es`). Es un seguro, no una dependencia |
 | Git | Ramas `feat/<área>-<tema>`, PR pequeño, 1 revisión, squash merge, main protegida, fusiones en los hitos |
 | Idioma | Código en inglés; documentación e informe en español (el informe puede ser bilingüe) |
-| Áreas | **A: Maiki** (también coordina `docs/`) · **B: Alejandro** · **C: Migue** · **D: Guilli** (el runner de CI va en el portátil de Maiki) |
+| Áreas | **A: Maiki** (también coordina `docs/`) · **B: Alejandro** · **C: Migue** · **D: Guilli** (el runner de CI va en el portátil de Alejandro) |
 
 ### Aplazadas
 | Decisión | Límite |
@@ -234,7 +234,7 @@ Principios:
 
 | Orden | Id | Tarea | Resp. | Terminado cuando… |
 |---|---|---|---|---|
-| 1 | P1 | Portátiles: `setup-portatil.ps1` del repo (Git, Python, `.venv`, Chromium de Playwright, Claude Code), `pip install -r requirements.txt`, `gh auth status`, ECC. En Windows, además: `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` | todos | `pytest --version` y `python -m playwright --version` funcionan en el `.venv` (al portátil de Maiki le falta `gh`) |
+| 1 | P1 | Portátiles: `setup-portatil.ps1` del repo (Git, Python, `.venv`, Chromium de Playwright, Claude Code), `pip install -r requirements.txt`, `gh auth status`, ECC. En Windows, además: `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` | todos | `pytest --version` y `python -m playwright --version` funcionan en el `.venv` (`gh` portable en `D:\DevTools\gh`) |
 | 1 | P1b | ~~VPN~~ → Comprobar que cada portátil abre el mercado de las cuentas españolas (sin VPN) | todos | El lobby carga y no salta el WAF |
 | 1 | P2 | Acceso de escritura al repo `gitmobau/Malackaton`, clonarlo y configurar `git config` | todos | `git pull` funciona |
 | 1 | P3 | Hacer las preguntas urgentes a los mentores (`PREGUNTAS.md` §1) | 1 persona | Respuestas apuntadas |
@@ -251,7 +251,8 @@ Con cada "Nueva info": cambiar las incógnitas, cerrar las decisiones que se pue
 - 15-oct, v0.1: plan de preparación genérico (24 h, sin bases).
 - 15-oct, v0.2: VPN obligatoria (lo dice la organización).
 - 15-oct, v1.0: llega el PDF del reto. Login, Real Play, Pragmatic, 2 escenarios × 2 mercados, GitHub Actions y criterios de evaluación. Desarrollo hasta las 20:00. Oracle disponible.
-- 15-oct, **v1.5**: todo en un solo portátil (Maiki) con un worktree de git por área y Remote Control; `.venv` compartido; runner de CI también en ese portátil.
+- 15-oct, **v1.6**: migración al portátil de Alejandro (más RAM y CPU) con la misma ruta `D:\MAIKI\Malackathon`; un `handoff/<X>.md` por área y scripts en `coordinacion/`. Runner de CI en el portátil de Alejandro; rapidocr v3.
+- 15-oct, v1.5: todo en un solo portátil (Maiki) con un worktree de git por área y Remote Control; `.venv` compartido; runner de CI también en ese portátil.
 - 15-oct, v1.4: áreas asignadas (A Maiki, B Alejandro, C Migue, D Guilli). **Stack cambiado a Python** (el repo ya estaba preparado; mejor OCR y visión). Ramas por área + PR. `CLAUDE.md` fusionado con el original del repo.
 - 15-oct, v1.3: solo betsson.es en real, pero **adaptable a todos los mercados** → configuración por mercado validada, `parseMoney` genérico, textos por idioma, `com` y `pe` configurados y probados con capturas.
 - 15-oct, v1.2: el juego del proveedor puede cambiar en cualquier momento y Betsson responde de ello → anclas semánticas, autocalibración, detección de deriva (`PROVIDER_UI_CHANGED`) y test de resistencia. Plan de arranque en paralelo de las 4 áreas (`PLAN_24H.md`).
