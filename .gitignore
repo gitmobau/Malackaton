@@ -6,11 +6,19 @@ __pycache__/
 
 # Secretos
 .env
+.env.*
+!.env.example
 *.key
 *.pem
 
 # Resultados generados (capturas, informes, modelos)
 outputs/
+test-results/
+playwright-report/
+.pytest_cache/
+*.har
+*.webm
+trace*.zip
 
 # Node
 node_modules/

@@ -1,0 +1,133 @@
+name: Validación de juegos
+
+on:
+  workflow_dispatch:
+    inputs:
+      markets:
+        description: "Mercados a ejecutar en real, separados por comas (es, com, pe)"
+        default: "es"
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Tests sin red (OCR, parse_money, contratos)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pytest -m unit
+
+  real:
+    name: Real · ${{ matrix.market }}
+    needs: unit
+    # Solo a mano (Actions → Run workflow). Nunca con pull_request: el runner es el portátil del equipo
+    # y un PR ejecutaría código ajeno con los secretos. Tampoco en cada push: abriría Chrome en la máquina
+    # donde trabajan A y B y gastaría saldo de las cuentas de prueba.
+    if: github.event_name == 'workflow_dispatch'
+    # Runner propio en España: los runners de GitHub tienen IP de EE. UU. y Betsson geobloquea.
+    runs-on: [self-hosted, windows, betsson-es]
+    timeout-minutes: 30
+    # Una sola ejecución real a la vez por mercado: compartimos cuentas de prueba.
+    concurrency:
+      group: validacion-real-${{ matrix.market }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - market: es
+            secret_prefix: ES
+          - market: com
+            secret_prefix: COM
+          - market: pe
+            secret_prefix: PE
+    env:
+      MARKET: ${{ matrix.market }}
+      RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      # Activo solo si está en la lista: por defecto "es". com y pe: configurados, sin cuenta.
+      ENABLED: ${{ contains(format(',{0},', github.event.inputs.markets || 'es'), format(',{0},', matrix.market)) }}
+      VENV_PY: ${{ vars.VENV_PY || 'D:\MAIKI\Malackathon\.venv\Scripts\python.exe' }}
+      PLAYWRIGHT_BROWSERS_PATH: D:\DevCache\ms-playwright
+    steps:
+      - name: Mercado desactivado
+        if: env.ENABLED != 'true'
+        shell: powershell
+        run: Write-Output "Mercado $env:MARKET configurado; ejecución real desactivada (sin cuenta)."
+
+      - name: Comprobar que el runner tiene escritorio
+        # --headed necesita una sesión interactiva: el runner se arranca con run.cmd en una terminal, no como servicio.
+        if: env.ENABLED == 'true'
+        shell: powershell
+        run: |
+          if ((Get-Process -Id $PID).SessionId -eq 0) {
+            Write-Output "::error::El runner corre como servicio (sesión 0, sin escritorio). Arráncalo con run.cmd en una terminal."
+            exit 1
+          }
+
+      - uses: actions/checkout@v4
+        if: env.ENABLED == 'true'
+        with:
+          clean: true
+          persist-credentials: false
+
+      - name: Limpiar evidencias de ejecuciones anteriores
+        if: env.ENABLED == 'true'
+        shell: powershell
+        run: |
+          Remove-Item -Recurse -Force outputs -ErrorAction SilentlyContinue
+          exit 0
+
+      - name: Ejecutar escenarios
+        if: env.ENABLED == 'true'
+        shell: powershell
+        # Los secretos solo existen en este paso y en el escáner. Se exponen con el nombre de .env.example.
+        env:
+          BETSSON_USERNAME: ${{ secrets[format('BETSSON_{0}_USERNAME', matrix.secret_prefix)] }}
+          BETSSON_PASSWORD: ${{ secrets[format('BETSSON_{0}_PASSWORD', matrix.secret_prefix)] }}
+          BETSSON_EMPTY_USERNAME: ${{ secrets[format('BETSSON_{0}_EMPTY_USERNAME', matrix.secret_prefix)] }}
+          BETSSON_EMPTY_PASSWORD: ${{ secrets[format('BETSSON_{0}_EMPTY_PASSWORD', matrix.secret_prefix)] }}
+        run: |
+          $m = $env:MARKET.ToUpper()
+          foreach ($k in 'USERNAME','PASSWORD','EMPTY_USERNAME','EMPTY_PASSWORD') {
+            [Environment]::SetEnvironmentVariable("BETSSON_${m}_$k", [Environment]::GetEnvironmentVariable("BETSSON_$k"))
+          }
+          & $env:VENV_PY -m pytest -m "unit or real" --market $env:MARKET --headed --browser-channel chrome
+          exit $LASTEXITCODE
+
+      - name: Buscar secretos en las evidencias
+        id: scan
+        if: always() && env.ENABLED == 'true'
+        shell: powershell
+        env:
+          BETSSON_USERNAME: ${{ secrets[format('BETSSON_{0}_USERNAME', matrix.secret_prefix)] }}
+          BETSSON_PASSWORD: ${{ secrets[format('BETSSON_{0}_PASSWORD', matrix.secret_prefix)] }}
+          BETSSON_EMPTY_USERNAME: ${{ secrets[format('BETSSON_{0}_EMPTY_USERNAME', matrix.secret_prefix)] }}
+          BETSSON_EMPTY_PASSWORD: ${{ secrets[format('BETSSON_{0}_EMPTY_PASSWORD', matrix.secret_prefix)] }}
+        run: |
+          & $env:VENV_PY .github/scripts/scan_secrets.py outputs
+          exit $LASTEXITCODE
+
+      - name: Publicar evidencias e informe
+        # Solo si el escáner terminó en verde. Trazas (.zip) y vídeos (.webm) fuera
+        # hasta que el login esté pausado en la traza y tapado en el vídeo.
+        if: always() && env.ENABLED == 'true' && steps.scan.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidencias-${{ matrix.market }}-${{ env.RUN_ID }}
+          path: |
+            outputs/
+            !outputs/**/*.zip
+            !outputs/**/*.webm
+          if-no-files-found: warn
+          retention-days: 7
