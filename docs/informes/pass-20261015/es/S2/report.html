@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S2 · es · PASS</title>
+<style>
+  :root { --pass:#1f8a4c; --fail:#c62828; --inc:#b26a00; --ui:#6a3fb5; --ink:#1d2330; --muted:#5d6675; --line:#e3e6ec; --bg:#f7f8fa; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color:var(--ink); background:var(--bg); }
+  main { max-width:1100px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:22px; margin:0 0 4px; } h2 { font-size:17px; margin:28px 0 8px; }
+  .meta { color:var(--muted); font-size:13px; }
+  .badge { display:inline-block; padding:2px 10px; border-radius:999px; color:#fff; font-weight:600; font-size:12px; letter-spacing:.03em; }
+  .PASS { background:var(--pass); } .FAIL { background:var(--fail); }
+  .INCONCLUSIVE, .inconclusive { background:var(--inc); } .PROVIDER_UI_CHANGED, .provider_ui_changed { background:var(--ui); }
+  .integration { background:var(--fail); }
+  .summary { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:12px 0; }
+  .notice { border-left:4px solid var(--ui); background:#fff; padding:10px 14px; margin:12px 0; }
+  .notice.error { border-color:var(--fail); }
+  table { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); }
+  th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); background:#fbfbfd; }
+  td code { font-size:12px; }
+  .ev { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .ev img { max-width:180px; max-height:110px; border:1px solid var(--line); border-radius:4px; }
+  .wrap { overflow-x:auto; }
+  .readings { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:12px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:8px; padding:10px; }
+  .card.doubt { border-color:var(--inc); box-shadow:inset 3px 0 0 var(--inc); }
+  .card img { width:100%; max-height:150px; object-fit:contain; background:#111; border-radius:4px; }
+  .card .name { font-weight:600; } .card .src { color:var(--muted); font-size:12px; text-transform:uppercase; }
+  .card .val { font-size:18px; font-weight:600; margin:4px 0; } .card .ocr { font-family:ui-monospace,monospace; font-size:12px; color:var(--muted); }
+  a { color:#1a5fb4; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:12px; margin:12px 0 8px; }
+  .tile { display:block; background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px 14px; color:inherit; text-decoration:none; border-top:5px solid var(--line); }
+  .tile.PASS { border-top-color:var(--pass); } .tile.FAIL { border-top-color:var(--fail); }
+  .tile.INCONCLUSIVE { border-top-color:var(--inc); } .tile.PROVIDER_UI_CHANGED { border-top-color:var(--ui); }
+  .tile-head { margin-bottom:6px; font-size:16px; }
+  .flag { display:inline-block; margin:6px 6px 0 0; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:600; }
+  .flag.info { background:#e7f0ff; color:#1a4fa0; } .flag.ui { background:#efe7fb; color:var(--ui); } .flag.err { background:#fde8e8; color:var(--fail); }
+  .strip { display:flex; gap:6px; margin-top:10px; } .strip img { width:23%; height:56px; object-fit:cover; border-radius:4px; background:#111; }
+  .matrix td, .matrix th { text-align:center; } .matrix td:first-child, .matrix th:first-child { text-align:left; }
+  .notice.info { border-color:#1a5fb4; }
+</style>
+</head>
+<body><main>
+<h1>S2 en el mercado es</h1>
+<div class="meta">
+  Run demo-20261015-1811 · juego big-bass-splash · perfil pragmatic
+  · 2026-10-15 16:11:32 UTC
+(252.6 s)</div>
+
+<div class="summary">
+  <span class="badge PASS">PASS</span>
+  <span>7 de 7 comprobaciones en PASS</span>
+</div>
+
+<div class="notice info"><strong>Login asistido por una persona</strong> (autorizado por los mentores): una persona inició la sesión en Betsson; todo lo demás —abrir el juego, leer la pantalla, girar y verificar— lo hizo el comprobador solo.</div>
+<div class="notice"><strong>Aviso:</strong> ojos del juego: intro &#39;presentacion&#39;: botón no encontrado, se usó la pista</div>
+<div class="notice"><strong>Aviso:</strong> ojos del juego: botón de girar no encontrado por plantilla: se usa la pista de zona</div>
+<div class="notice"><strong>Aviso:</strong> ojos del juego: tirada rechazada: al pulsar apareció un mensaje del juego</div>
+<div class="notice"><strong>Aviso:</strong> ojos del juego: importe encontrado releyendo ampliada la zona del perfil</div>
+<div class="notice"><strong>Aviso:</strong> el juego del proveedor ha cambiado desde la última ejecución (demo-20261015-1746): la franja de controles ha cambiado (12 de 64 bits) — no cambia el veredicto; capturas de antes y ahora en «Evidencias generales».</div>
+
+<h2>Lo que vio el comprobador</h2>
+<p class="meta">Cada importe se lee de la pantalla como lo vería un jugador (OCR sobre el canvas o el saldo de la web). La red y el monedero solo confirman.</p>
+<div class="readings">
+  <div class="card">
+    <div class="src">betsson</div>
+    <div class="name">Saldo de Betsson antes</div>
+<a href="betsson_balance.png"><img src="betsson_balance.png" alt="Saldo de Betsson antes"></a>    <div class="val">0.00 EUR</div>
+    <div class="ocr">OCR: «0,00 €»</div>
+    <div class="meta">
+confianza 100 % · moneda vista    </div>
+  </div>
+  <div class="card">
+    <div class="src">juego</div>
+    <div class="name">Apuesta</div>
+<a href="012_read_bet.png"><img src="012_read_bet.png" alt="Apuesta"></a>    <div class="val">0.10 EUR</div>
+    <div class="ocr">OCR: «0,10 €»</div>
+    <div class="meta">
+confianza 100 % · moneda vista    </div>
+  </div>
+  <div class="card">
+    <div class="src">juego</div>
+    <div class="name">Saldo del juego antes</div>
+<a href="015_read_balance.png"><img src="015_read_balance.png" alt="Saldo del juego antes"></a>    <div class="val">0.00 EUR</div>
+    <div class="ocr">OCR: «0,00 €»</div>
+    <div class="meta">
+confianza 98 % · moneda vista    </div>
+  </div>
+  <div class="card">
+    <div class="src">juego</div>
+    <div class="name">Saldo del juego después</div>
+<a href="019_read_balance.png"><img src="019_read_balance.png" alt="Saldo del juego después"></a>    <div class="val">0.00 EUR</div>
+    <div class="ocr">OCR: «0,00 €»</div>
+    <div class="meta">
+confianza 97 % · moneda vista    </div>
+  </div>
+  <div class="card">
+    <div class="src">juego</div>
+    <div class="name">Mensaje en el juego</div>
+<a href="018_message.png"><img src="018_message.png" alt="Mensaje en el juego"></a>    <div class="val">idioma es</div>
+    <div class="ocr">OCR: «BIGBASS SPLASH 10 COMPRETIRADAS A GRATIS A10 10 QQQ X apuesta. Haga un depósito en su cuenta Fondos insuficientes para realizar esta o reduzca el nivel de la apuesta. MENSAJE HAGA SU APUESTA! ACEPTAR QQQQ APUESTA 0,10 € 0,00 € CRÉDITO TIR. AUTO. BIG BASS SPLASH • 18:15»</div>
+    <div class="meta">
+confianza 58 %    </div>
+  </div>
+  <div class="card">
+    <div class="src">betsson</div>
+    <div class="name">Saldo de Betsson después</div>
+<a href="betsson_balance.png"><img src="betsson_balance.png" alt="Saldo de Betsson después"></a>    <div class="val">0.00 EUR</div>
+    <div class="ocr">OCR: «0,00 €»</div>
+    <div class="meta">
+confianza 100 % · moneda vista    </div>
+  </div>
+</div>
+
+<h2>Comprobaciones</h2>
+<div class="wrap">
+<table>
+  <thead><tr><th>Comprobación</th><th>Resultado</th><th>Motivo</th><th>Esperado</th><th>Observado</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>login_ok</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        sesión de jugador válida (login asistido por una persona a las 16:03)
+      </td>
+      <td>—</td>
+      <td>asistido</td>
+    </tr>
+    <tr>
+      <td><code>real_play</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        juego abierto en Real Play (sesión de juego del regulador activa desde las 17:49 (límites aceptados en una ejecución anterior, válidos 5 h; solo existen con dinero real))
+        <div class="ev">
+<a href="game_opened.png"><img src="game_opened.png" alt="game_opened.png"></a>
+        </div>
+      </td>
+      <td>—</td>
+      <td>real</td>
+    </tr>
+    <tr>
+      <td><code>currency_matches_market</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        5 importes visibles en EUR
+        <div class="ev">
+<a href="015_read_balance.png"><img src="015_read_balance.png" alt="015_read_balance.png"></a>
+<a href="012_read_bet.png"><img src="012_read_bet.png" alt="012_read_bet.png"></a>
+<a href="019_read_balance.png"><img src="019_read_balance.png" alt="019_read_balance.png"></a>
+<a href="betsson_balance.png"><img src="betsson_balance.png" alt="betsson_balance.png"></a>
+<a href="betsson_balance.png"><img src="betsson_balance.png" alt="betsson_balance.png"></a>
+        </div>
+      </td>
+      <td>EUR</td>
+      <td>EUR</td>
+    </tr>
+    <tr>
+      <td><code>spin_rejected</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        tirada rechazada: aviso «BIGBASS SPLASH 10 COMPRETIRADAS A GRATIS A10 10 QQQ X apuesta. Haga un depósito en su cuenta Fondos insuficientes para realizar esta o reduzca el nivel de la apuesta. MENSAJE HAGA SU APUESTA! ACEPTAR QQQQ APUESTA 0,10 € 0,00 € CRÉDITO TIR. AUTO. BIG BASS SPLASH • 18:15» y saldo del juego sin cambios, sin cambio visual
+        <div class="ev">
+<a href="018_message.png"><img src="018_message.png" alt="018_message.png"></a>
+        </div>
+      </td>
+      <td>—</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><code>insufficient_message_language</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        mensaje en es: «BIGBASS SPLASH 10 COMPRETIRADAS A GRATIS A10 10 QQQ X apuesta. Haga un depósito en su cuenta Fondos insuficientes para realizar esta o reduzca el nivel de la apuesta. MENSAJE HAGA SU APUESTA! ACEPTAR QQQQ APUESTA 0,10 € 0,00 € CRÉDITO TIR. AUTO. BIG BASS SPLASH • 18:15»
+        <div class="ev">
+<a href="018_message.png"><img src="018_message.png" alt="018_message.png"></a>
+        </div>
+      </td>
+      <td>es</td>
+      <td>es</td>
+    </tr>
+    <tr>
+      <td><code>betsson_balance_unchanged</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        sin cambios: antes 0.00 EUR; después 0.00 EUR; diferencia 0.00 (tolerancia 0.01)
+        <div class="ev">
+<a href="betsson_balance.png"><img src="betsson_balance.png" alt="betsson_balance.png"></a>
+<a href="betsson_balance.png"><img src="betsson_balance.png" alt="betsson_balance.png"></a>
+        </div>
+      </td>
+      <td>0.00 EUR</td>
+      <td>0.00 EUR</td>
+    </tr>
+    <tr>
+      <td><code>ingame_balance_unchanged</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        sin cambios: antes 0.00 EUR; después 0.00 EUR; diferencia 0.00 (tolerancia 0.01)
+        <div class="ev">
+<a href="015_read_balance.png"><img src="015_read_balance.png" alt="015_read_balance.png"></a>
+<a href="019_read_balance.png"><img src="019_read_balance.png" alt="019_read_balance.png"></a>
+        </div>
+      </td>
+      <td>0.00 EUR</td>
+      <td>0.00 EUR</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Evidencias generales</h2>
+<div class="ev">
+<a href="fingerprint_before.png"><img src="fingerprint_before.png" alt="fingerprint_before.png" title="fingerprint_before.png"></a>
+<a href="fingerprint_now.png"><img src="fingerprint_now.png" alt="fingerprint_now.png" title="fingerprint_now.png"></a>
+</div>
+
+<p class="meta">Datos en bruto: <a href="results.json">results.json</a>. Lo dudoso cuenta como FAIL no concluyente; nunca como PASS.</p>
+</main></body>
+</html>

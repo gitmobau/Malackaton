@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S1 · es · PASS</title>
+<style>
+  :root { --pass:#1f8a4c; --fail:#c62828; --inc:#b26a00; --ui:#6a3fb5; --ink:#1d2330; --muted:#5d6675; --line:#e3e6ec; --bg:#f7f8fa; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color:var(--ink); background:var(--bg); }
+  main { max-width:1100px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:22px; margin:0 0 4px; } h2 { font-size:17px; margin:28px 0 8px; }
+  .meta { color:var(--muted); font-size:13px; }
+  .badge { display:inline-block; padding:2px 10px; border-radius:999px; color:#fff; font-weight:600; font-size:12px; letter-spacing:.03em; }
+  .PASS { background:var(--pass); } .FAIL { background:var(--fail); }
+  .INCONCLUSIVE, .inconclusive { background:var(--inc); } .PROVIDER_UI_CHANGED, .provider_ui_changed { background:var(--ui); }
+  .integration { background:var(--fail); }
+  .summary { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:12px 0; }
+  .notice { border-left:4px solid var(--ui); background:#fff; padding:10px 14px; margin:12px 0; }
+  .notice.error { border-color:var(--fail); }
+  table { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); }
+  th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); background:#fbfbfd; }
+  td code { font-size:12px; }
+  .ev { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .ev img { max-width:180px; max-height:110px; border:1px solid var(--line); border-radius:4px; }
+  .wrap { overflow-x:auto; }
+  .readings { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:12px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:8px; padding:10px; }
+  .card.doubt { border-color:var(--inc); box-shadow:inset 3px 0 0 var(--inc); }
+  .card img { width:100%; max-height:150px; object-fit:contain; background:#111; border-radius:4px; }
+  .card .name { font-weight:600; } .card .src { color:var(--muted); font-size:12px; text-transform:uppercase; }
+  .card .val { font-size:18px; font-weight:600; margin:4px 0; } .card .ocr { font-family:ui-monospace,monospace; font-size:12px; color:var(--muted); }
+  a { color:#1a5fb4; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:12px; margin:12px 0 8px; }
+  .tile { display:block; background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px 14px; color:inherit; text-decoration:none; border-top:5px solid var(--line); }
+  .tile.PASS { border-top-color:var(--pass); } .tile.FAIL { border-top-color:var(--fail); }
+  .tile.INCONCLUSIVE { border-top-color:var(--inc); } .tile.PROVIDER_UI_CHANGED { border-top-color:var(--ui); }
+  .tile-head { margin-bottom:6px; font-size:16px; }
+  .flag { display:inline-block; margin:6px 6px 0 0; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:600; }
+  .flag.info { background:#e7f0ff; color:#1a4fa0; } .flag.ui { background:#efe7fb; color:var(--ui); } .flag.err { background:#fde8e8; color:var(--fail); }
+  .strip { display:flex; gap:6px; margin-top:10px; } .strip img { width:23%; height:56px; object-fit:cover; border-radius:4px; background:#111; }
+  .matrix td, .matrix th { text-align:center; } .matrix td:first-child, .matrix th:first-child { text-align:left; }
+  .notice.info { border-color:#1a5fb4; }
+</style>
+</head>
+<body><main>
+<h1>S1 en el mercado es</h1>
+<div class="meta">
+  Run demo-20261015-1746 · juego big-bass-splash · perfil pragmatic
+  · 2026-10-15 15:46:46 UTC
+(71.2 s)</div>
+
+<div class="summary">
+  <span class="badge PASS">PASS</span>
+  <span>11 de 11 comprobaciones en PASS</span>
+</div>
+
+<div class="notice info"><strong>Login asistido por una persona</strong> (autorizado por los mentores): una persona inició la sesión en Betsson; todo lo demás —abrir el juego, leer la pantalla, girar y verificar— lo hizo el comprobador solo.</div>
+<div class="notice"><strong>Aviso:</strong> huella de referencia del juego creada en esta ejecución</div>
+
+<h2>Lo que vio el comprobador</h2>
+<p class="meta">Cada importe se lee de la pantalla como lo vería un jugador (OCR sobre el canvas o el saldo de la web). La red y el monedero solo confirman.</p>
+<div class="readings">
+  <div class="card">
+    <div class="src">betsson</div>
+    <div class="name">Saldo de Betsson antes</div>
+<a href="betsson_balance.png"><img src="betsson_balance.png" alt="Saldo de Betsson antes"></a>    <div class="val">99.80 EUR</div>
+    <div class="ocr">OCR: «99,80 €»</div>
+    <div class="meta">
+confianza 100 % · moneda vista    </div>
+  </div>
+  <div class="card">
+    <div class="src">juego</div>
+    <div class="name">Apuesta</div>
+<a href="001_read_bet.png"><img src="001_read_bet.png" alt="Apuesta"></a>    <div class="val">0.10 EUR</div>
+    <div class="ocr">OCR: «0,10 €»</div>
+    <div class="meta">
+confianza 100 % · moneda vista    </div>
+  </div>
+  <div class="card">
+    <div class="src">juego</div>
+    <div class="name">Saldo del juego antes</div>
+<a href="004_read_balance.png"><img src="004_read_balance.png" alt="Saldo del juego antes"></a>    <div class="val">99.80 EUR</div>
+    <div class="ocr">OCR: «99,80 €»</div>
+    <div class="meta">
+confianza 97 % · moneda vista    </div>
+  </div>
+  <div class="card">
+    <div class="src">juego</div>
+    <div class="name">Ganancia</div>
+<a href="008_read_win.png"><img src="008_read_win.png" alt="Ganancia"></a>    <div class="val">0 EUR</div>
+    <div class="ocr">OCR: «—»</div>
+    <div class="meta">
+confianza 99 % · moneda no vista    </div>
+<div class="meta">sin etiqueta de ganancia con saldo y apuesta visibles: el perfil la oculta cuando es 0</div>  </div>
+  <div class="card">
+    <div class="src">juego</div>
+    <div class="name">Saldo del juego después</div>
+<a href="011_read_balance.png"><img src="011_read_balance.png" alt="Saldo del juego después"></a>    <div class="val">99.70 EUR</div>
+    <div class="ocr">OCR: «99,70 €»</div>
+    <div class="meta">
+confianza 97 % · moneda vista    </div>
+  </div>
+  <div class="card">
+    <div class="src">juego</div>
+    <div class="name">Apuesta tras la tirada</div>
+<a href="012_read_bet.png"><img src="012_read_bet.png" alt="Apuesta tras la tirada"></a>    <div class="val">0.10 EUR</div>
+    <div class="ocr">OCR: «0,10 €»</div>
+    <div class="meta">
+confianza 100 % · moneda vista    </div>
+  </div>
+  <div class="card">
+    <div class="src">betsson</div>
+    <div class="name">Saldo de Betsson después</div>
+<a href="betsson_balance.png"><img src="betsson_balance.png" alt="Saldo de Betsson después"></a>    <div class="val">99.70 EUR</div>
+    <div class="ocr">OCR: «99,70 €»</div>
+    <div class="meta">
+confianza 100 % · moneda vista    </div>
+  </div>
+</div>
+
+<h2>Comprobaciones</h2>
+<div class="wrap">
+<table>
+  <thead><tr><th>Comprobación</th><th>Resultado</th><th>Motivo</th><th>Esperado</th><th>Observado</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>login_ok</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        sesión de jugador válida (login asistido por una persona a las 15:36)
+      </td>
+      <td>—</td>
+      <td>asistido</td>
+    </tr>
+    <tr>
+      <td><code>real_play</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        juego abierto en Real Play (sesión de juego del regulador activa desde las 17:15 (límites aceptados en una ejecución anterior, válidos 5 h; solo existen con dinero real))
+        <div class="ev">
+<a href="game_opened.png"><img src="game_opened.png" alt="game_opened.png"></a>
+        </div>
+      </td>
+      <td>—</td>
+      <td>real</td>
+    </tr>
+    <tr>
+      <td><code>currency_matches_market</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        5 importes visibles en EUR
+        <div class="ev">
+<a href="004_read_balance.png"><img src="004_read_balance.png" alt="004_read_balance.png"></a>
+<a href="001_read_bet.png"><img src="001_read_bet.png" alt="001_read_bet.png"></a>
+<a href="011_read_balance.png"><img src="011_read_balance.png" alt="011_read_balance.png"></a>
+<a href="betsson_balance.png"><img src="betsson_balance.png" alt="betsson_balance.png"></a>
+<a href="betsson_balance.png"><img src="betsson_balance.png" alt="betsson_balance.png"></a>
+        </div>
+      </td>
+      <td>EUR</td>
+      <td>EUR</td>
+    </tr>
+    <tr>
+      <td><code>betsson_balance_before</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        saldo de Betsson antes leído: 99.80 EUR («99,80 €»)
+        <div class="ev">
+<a href="betsson_balance.png"><img src="betsson_balance.png" alt="betsson_balance.png"></a>
+        </div>
+      </td>
+      <td>—</td>
+      <td>99.80 EUR</td>
+    </tr>
+    <tr>
+      <td><code>wager_read</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        apuesta visible leído: 0.10 EUR («0,10 €»)
+        <div class="ev">
+<a href="001_read_bet.png"><img src="001_read_bet.png" alt="001_read_bet.png"></a>
+        </div>
+      </td>
+      <td>—</td>
+      <td>0.10 EUR</td>
+    </tr>
+    <tr>
+      <td><code>spin_started</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        se vio empezar la tirada (cambio visual tras pulsar)
+      </td>
+      <td>—</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><code>spin_completed</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        la tirada terminó en 14.5 s (pantalla estable)
+        <div class="ev">
+<a href="007_spin_end.png"><img src="007_spin_end.png" alt="007_spin_end.png"></a>
+        </div>
+      </td>
+      <td>—</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><code>payout_read</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        ganancia leído: 0 EUR («»)
+        <div class="ev">
+<a href="008_read_win.png"><img src="008_read_win.png" alt="008_read_win.png"></a>
+        </div>
+      </td>
+      <td>—</td>
+      <td>0 EUR</td>
+    </tr>
+    <tr>
+      <td><code>ingame_balance_consistent</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        cuadra: 99.80 EUR − 0.10 EUR + 0 EUR = 99.70 EUR; leído 99.70 EUR; diferencia 0.00 (tolerancia 0.01)
+        <div class="ev">
+<a href="004_read_balance.png"><img src="004_read_balance.png" alt="004_read_balance.png"></a>
+<a href="001_read_bet.png"><img src="001_read_bet.png" alt="001_read_bet.png"></a>
+<a href="008_read_win.png"><img src="008_read_win.png" alt="008_read_win.png"></a>
+<a href="011_read_balance.png"><img src="011_read_balance.png" alt="011_read_balance.png"></a>
+        </div>
+      </td>
+      <td>99.70 EUR</td>
+      <td>99.70 EUR</td>
+    </tr>
+    <tr>
+      <td><code>betsson_balance_reconciles</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        cuadra: 99.80 EUR − 0.10 EUR + 0 EUR = 99.70 EUR; leído 99.70 EUR; diferencia 0.00 (tolerancia 0.01)
+        <div class="ev">
+<a href="betsson_balance.png"><img src="betsson_balance.png" alt="betsson_balance.png"></a>
+<a href="001_read_bet.png"><img src="001_read_bet.png" alt="001_read_bet.png"></a>
+<a href="008_read_win.png"><img src="008_read_win.png" alt="008_read_win.png"></a>
+<a href="betsson_balance.png"><img src="betsson_balance.png" alt="betsson_balance.png"></a>
+        </div>
+      </td>
+      <td>99.70 EUR</td>
+      <td>99.70 EUR</td>
+    </tr>
+    <tr>
+      <td><code>wager_is_used_wager</code></td>
+      <td>
+        <span class="badge PASS">PASS</span>
+      </td>
+      <td>
+        coincide: apuesta mostrada 0.10 EUR; descontado 0.10 EUR; apuesta tras la tirada 0.10 EUR
+        <div class="ev">
+<a href="004_read_balance.png"><img src="004_read_balance.png" alt="004_read_balance.png"></a>
+<a href="008_read_win.png"><img src="008_read_win.png" alt="008_read_win.png"></a>
+<a href="011_read_balance.png"><img src="011_read_balance.png" alt="011_read_balance.png"></a>
+<a href="001_read_bet.png"><img src="001_read_bet.png" alt="001_read_bet.png"></a>
+<a href="012_read_bet.png"><img src="012_read_bet.png" alt="012_read_bet.png"></a>
+        </div>
+      </td>
+      <td>0.10 EUR</td>
+      <td>0.10 EUR</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+
+<p class="meta">Datos en bruto: <a href="results.json">results.json</a>. Lo dudoso cuenta como FAIL no concluyente; nunca como PASS.</p>
+</main></body>
+</html>
