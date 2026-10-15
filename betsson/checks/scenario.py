@@ -31,6 +31,7 @@ from betsson.core import (
     RunResult,
     Scenario,
 )
+from betsson.report.fingerprint import BaselineStore, check_drift, take
 from betsson.report.html import render_run
 
 log = logging.getLogger(__name__)
@@ -69,7 +70,10 @@ def _prepare(
     profile = registry.resolve(handle.iframe_url, handle.capture())
     extra["provider"] = profile.name
     registry.ensure_recognized(profile, handle.capture())  # ProviderUIChanged sube a run_scenario
-    return eyes_factory(handle, profile, market)
+    eyes = eyes_factory(handle, profile, market)
+    # Pantalla de juego lista (B ya cerró la intro): base de la huella de referencia.
+    extra["frame"], extra["iframe_url"] = handle.capture(), handle.iframe_url
+    return eyes
 
 
 def _play_s1(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target: BetTarget) -> None:
@@ -128,11 +132,23 @@ def _with_relative_evidence(run: RunResult, base: Path) -> RunResult:
     return run.model_copy(update={"results": results, "evidence": evidence, "warnings": tuple(dict.fromkeys(warnings))})
 
 
+def _with_drift(run: RunResult, baselines: BaselineStore, extra: dict[str, Any], out_dir: Path) -> RunResult:
+    """Aviso si el juego cambió desde la última ejecución buena. Solo un PASS actualiza la referencia."""
+    try:
+        fp = take(extra["frame"], iframe_url=extra["iframe_url"], market=run.market, game=run.game or "",
+                  provider=run.provider, run_id=run.run_id)
+        warnings, evidence = check_drift(baselines, extra["frame"], fp, out_dir, update=run.outcome == "PASS")
+    except Exception as exc:  # la huella es un extra: nunca debe tumbar el resultado
+        log.exception("huella del juego")
+        return run.model_copy(update={"warnings": (*run.warnings, f"huella no disponible: {safe_error(exc)}")})
+    return run.model_copy(update={"warnings": (*run.warnings, *warnings), "evidence": (*run.evidence, *evidence)})
+
+
 def _collect(scenario: Scenario, site: BetssonSite, registry: ProviderRegistry, eyes_factory: GameEyesFactory,
              market: MarketContext, slug: str, bet_target: BetTarget) -> tuple[dict[str, Any], dict[str, Any]]:
     """Ejecuta los pasos. Devuelve (observación, extra con provider/error/evidence)."""
     obs: dict[str, Any] = {}
-    extra: dict[str, Any] = {"provider": None, "error": None, "evidence": ()}
+    extra: dict[str, Any] = {"provider": None, "error": None, "evidence": (), "frame": None, "iframe_url": None}
     try:
         eyes = _prepare(site, registry, eyes_factory, market, slug, obs, extra)
         if eyes is not None:
@@ -157,6 +173,7 @@ def run_scenario(
     out_dir: Path,
     run_id: str,
     bet_target: BetTarget = "min",
+    baselines: BaselineStore | None = None,
 ) -> RunResult:
     """Ejecuta un escenario en un mercado y deja results.json y report.html en out_dir."""
     if scenario is Scenario.S1 and bet_target != "min":
@@ -176,6 +193,8 @@ def run_scenario(
         started_at=started, finished_at=datetime.now(timezone.utc), results=results,
         warnings=tuple(warnings), error=error, evidence=extra["evidence"],
     )
+    if baselines is not None and extra["frame"] is not None:
+        run = _with_drift(run, baselines, extra, out_dir)
     run = _with_relative_evidence(run, out_dir)
     run.write_json(out_dir / RESULTS_FILE)
     try:

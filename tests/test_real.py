@@ -9,6 +9,8 @@ Solo en el runner propio en España: `pytest -m real --market es --headed`.
   se crea aquí y no con el fixture `context` de pytest-playwright (que grabaría el login).
 - Deja results.json y report.html en outputs/runs/<runId>/<market>/<S1|S2>/ y el índice
   del run en outputs/runs/<runId>/report.html.
+- Compara cada juego con su huella de la última ejecución buena (outputs/baselines/ o
+  BASELINE_DIR) y avisa si el juego del proveedor ha cambiado.
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ import pytest
 
 from betsson.checks.scenario import run_scenario
 from betsson.core import RunResult, Scenario
+from betsson.report.fingerprint import BaselineStore
 from betsson.report.html import render_index
 
 pytestmark = pytest.mark.real
@@ -32,6 +35,8 @@ registry_mod = pytest.importorskip("betsson.profiles.registry", reason="falta el
 
 VIEWPORT = {"width": 1366, "height": 768}
 ACCOUNTS = {Scenario.S1: "funded", Scenario.S2: "empty"}
+# Huellas de referencia por juego: en el runner propio persisten entre ejecuciones.
+BASELINES = BaselineStore(Path(os.getenv("BASELINE_DIR", "outputs/baselines")) / "game")
 
 
 @pytest.fixture(scope="module")
@@ -86,7 +91,7 @@ def _run(scenario: Scenario, player: dict[str, Any], market: Any, slug: str, run
         market=market, scenario=scenario, site=site,
         registry=registry_mod.Registry(evidence_dir=out),
         eyes_factory=factory_mod.GameEyesFactory(evidence_dir=out),
-        slug=slug, out_dir=out, run_id=run_id,
+        slug=slug, out_dir=out, run_id=run_id, baselines=BASELINES,
     )
     render_index(out.parent.parent)
     return run

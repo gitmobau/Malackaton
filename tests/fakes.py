@@ -60,9 +60,10 @@ class FakeGameHandle:
     play_mode: PlayMode = "real"
     play_mode_reason: str | None = "Betsson pidió los límites de sesión del regulador"
     evidence: tuple[Path, ...] = ()
+    frame: np.ndarray | None = None  # canvas simulado; None = negro
 
     def capture(self) -> np.ndarray:
-        return np.zeros((36, 64, 3), dtype=np.uint8)
+        return self.frame if self.frame is not None else np.zeros((36, 64, 3), dtype=np.uint8)
 
 
 @dataclass
