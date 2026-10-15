@@ -19,18 +19,7 @@ from pathlib import Path
 
 PUBLISHABLE = {".html", ".json", ".png", ".jpg", ".jpeg", ".css", ".svg"}
 ARTIFACT_PREFIX = "evidencias-"
-VERDICTS = ("PASS", "FAIL")
-
-
-def count_verdicts(node: object, counter: Counter[str]) -> None:
-    if isinstance(node, dict):
-        for value in node.values():
-            count_verdicts(value, counter)
-    elif isinstance(node, list):
-        for value in node:
-            count_verdicts(value, counter)
-    elif isinstance(node, str) and node.upper() in VERDICTS:
-        counter[node.upper()] += 1
+OUTCOME_KEY = "outcome"  # results.json de un escenario (área C): PASS/FAIL/INCONCLUSIVE/PROVIDER_UI_CHANGED
 
 
 def copy_publishable(src: Path, dst: Path) -> list[Path]:
@@ -45,18 +34,24 @@ def copy_publishable(src: Path, dst: Path) -> list[Path]:
 
 
 def summarize(files: list[Path], site: Path) -> Counter[str]:
+    """Un escenario = un results.json: cuenta su "outcome" de nivel superior."""
     counter: Counter[str] = Counter()
     for rel in files:
-        if rel.name == "results.json":
-            try:
-                count_verdicts(json.loads((site / rel).read_text(encoding="utf-8")), counter)
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                counter["ilegible"] += 1
+        if rel.name != "results.json":
+            continue
+        try:
+            data = json.loads((site / rel).read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            counter["ilegible"] += 1
+            continue
+        outcome = data.get(OUTCOME_KEY) if isinstance(data, dict) else None
+        counter[str(outcome).upper() if outcome else "sin outcome"] += 1
     return counter
 
 
 def market_section(name: str, files: list[Path], counter: Counter[str]) -> str:
-    links = [f for f in files if f.name in ("report.html", "results.json")]
+    # Primero el índice de C (runs/<runId>/report.html, el de ruta más corta), luego cada escenario.
+    links = sorted((f for f in files if f.name in ("report.html", "results.json")), key=lambda f: (len(f.parts), f.as_posix()))
     items = "".join(
         f'<li><a href="{html.escape(f.as_posix())}">{html.escape(f.as_posix())}</a></li>' for f in links
     ) or "<li>Sin informe todavía (el área C lo genera en outputs/runs/&lt;runId&gt;/).</li>"

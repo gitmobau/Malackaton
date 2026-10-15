@@ -83,7 +83,7 @@ Workflow `.github/workflows/validacion.yml` ("Validación de juegos"):
 - El runner `portatil-alejandro` (`D:\DevTools\actions-runner`) lleva las etiquetas `self-hosted, windows, betsson-es` y **se arranca con `run.cmd` en una terminal, no como servicio**. Un servicio no tiene escritorio y el navegador visible (`--headed`) falla; el workflow lo comprueba.
 - **Tras un reinicio o si se cierra su ventana, el runner se cae.** Para volver a arrancarlo:
   `start "runner" /min cmd /c "D:\DevTools\actions-runner\run.cmd"`.
-  Para que arranque solo al iniciar sesión, el dueño del portátil puede añadir esa línea al final de `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\unidad-D.cmd`, después del `subst`, que crea la unidad D:. Claude no lo hace porque es una persistencia fuera del repo.
+  **Arranca solo al iniciar sesión**: la última línea de `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\unidad-D.cmd` (después del `subst`, que crea la unidad D:) lanza `run.cmd` minimizado.
 - **Lanzar la validación (demo)**, con `gh` y la sesión iniciada:
   ```bash
   gh workflow run "Validación de juegos" -R gitmobau/Malackaton --ref main -f markets=es

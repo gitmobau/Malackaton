@@ -50,7 +50,7 @@ Estado a 15-oct, al migrar al portátil de Alejandro. Rama `feat/D-infra`.
   - Etiquetas `self-hosted, Windows, X64, betsson-es`.
   - Arrancado con `run.cmd` en una ventana minimizada, no como servicio.
   - Si se cierra esa ventana o se reinicia el portátil, el runner se cae. Para volver a arrancarlo: `start "runner" /min cmd /c "D:\DevTools\actions-runner\run.cmd"`.
-  - Arranque automático: **NO configurado**. El clasificador de permisos bloqueó editar `unidad-D.cmd` (Startup) por ser una persistencia. Lo tiene que añadir una persona (ver la sección CI del README).
+  - Arranque automático: **configurado** (15-oct, a petición de Guilli). Es la última línea de `unidad-D.cmd` en la carpeta Startup del usuario, después del `subst`.
 - CODEOWNERS: `* @gitmobau` (cuenta compartida); el reparto por áreas queda en comentarios. El README tiene un ejemplo de `gh workflow run` para la demo.
 - Pasos 1 y 2 hechos. Sigue el 3.
 
