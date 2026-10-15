@@ -77,7 +77,7 @@ avisa al final.
 ## CI (GitHub Actions)
 
 Workflow `.github/workflows/validacion.yml` ("Validación de juegos"):
-- **Tests `unit`** (sin red): en los runners de GitHub, en cada PR y en cada push a `main`. El job real ejecuta además los `browser` (navegador sin red externa, p. ej. la regresión de la traza) y los `real`.
+- **Tests `unit`** (sin red): en los runners de GitHub, en cada PR (sin los `slow`) y en cada push a `main` (todos). El job real ejecuta además los `browser` (navegador sin red externa, p. ej. la regresión de la traza) y los `real`.
 - **Job `real`** (entra en Betsson): **solo a mano**, en Actions → *Validación de juegos* → *Run workflow*, indicando los mercados (por defecto `es`; `com` y `pe` están configurados pero desactivados por falta de cuenta). Se ejecuta en el runner propio del portátil de Alejandro, porque los runners de GitHub tienen IP de EE. UU. y Betsson los geobloquea.
 - El job real usa **Chrome del sistema** (`--browser-channel chrome`): con él no salió captcha en el reconocimiento.
 - El runner `portatil-alejandro` (`D:\DevTools\actions-runner`) lleva las etiquetas `self-hosted, windows, betsson-es` y **se arranca con `run.cmd` en una terminal, no como servicio**. Un servicio no tiene escritorio y el navegador visible (`--headed`) falla; el workflow lo comprueba.
