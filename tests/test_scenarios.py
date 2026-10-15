@@ -172,9 +172,28 @@ def test_s2_rejected_spin_passes(tmp_path: Path) -> None:
     assert run.outcome == "PASS", [r.reason for r in run.results if r.status == "FAIL"]
 
 
-def test_s2_spin_that_starts_is_integration_failure(tmp_path: Path) -> None:
-    run = run_s2(tmp_path, spin_starts=True)
+def test_s2_spin_that_completes_and_charges_is_integration_failure(tmp_path: Path) -> None:
+    run = run_s2(tmp_path, game=("0.05", "0.00"), spin_starts=True, message=Message(text="", matches_insufficient=False))
     assert by_id(run)[CheckId.SPIN_REJECTED].failure_kind is FailureKind.INTEGRATION
+
+
+def test_s2_visual_change_from_the_notice_window_is_not_a_spin(tmp_path: Path) -> None:
+    """Run real demo-20261015-1748: el cambio visual era la ventana del aviso, no los rodillos."""
+    calls: list[str] = []
+    msg = Message(text="Fondos insuficientes para realizar esta apuesta.", lang_detected="es",
+                  matches_insufficient=True, confidence=0.97)
+    registry = FakeRegistry()
+    eyes = FakeGameEyes(registry.profile, tmp_path, [reading("0.00"), reading("0.00")], reading("0.10"),
+                        spin_starts=True, message=msg)
+    original = eyes.wait_spin_end
+    eyes.wait_spin_end = lambda: (calls.append("wait"), original())[1]  # type: ignore[method-assign]
+    site = FakeBetssonSite([reading("0.00"), reading("0.00")], tmp_path)
+    run = run_scenario(market=FakeMarket(), scenario=Scenario.S2, site=site, registry=registry,
+                       eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="r")
+    r = by_id(run)[CheckId.SPIN_REJECTED]
+    assert r.status == "PASS" and "ventana del aviso" in r.reason
+    assert calls == []  # con el aviso reconocido no se espera un fin de tirada
+    assert run.outcome == "PASS"
 
 
 def test_s2_message_in_wrong_language_fails(tmp_path: Path) -> None:

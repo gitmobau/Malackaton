@@ -138,9 +138,15 @@ def _play_s2(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target:
     obs["game_before"] = eyes.read_balance()
     on_ready()
     obs["spin_started"] = eyes.spin()
-    if obs["spin_started"] and not eyes.wait_spin_end().completed:
-        return  # la tirada no debía empezar; sin fin visible no se lee el saldo a mitad de giro
+    # Primero el mensaje: el "cambio visual" tras pulsar suele ser la propia ventana de
+    # fondos insuficientes, no los rodillos. Si se reconoce el aviso, no se espera a un fin
+    # de tirada que no va a llegar.
     obs["message"] = eyes.read_message()
+    if obs["spin_started"] and not obs["message"].matches_insufficient:
+        end = eyes.wait_spin_end()
+        obs["spin_completed"] = end.completed
+        if not end.completed:
+            return  # sin fin visible no se lee el saldo a mitad de giro
     obs["game_after"] = eyes.read_balance()
     obs["betsson_after"] = site.read_balance()
 
