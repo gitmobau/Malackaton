@@ -1,0 +1,31 @@
+{% extends "_base.html.j2" %}
+{% block title %}Run {{ run_id }}{% endblock %}
+{% block body %}
+<h1>Validación de juegos · run {{ run_id }}</h1>
+<div class="meta">{{ entries|length }} escenarios. Pulsa en cada uno para ver sus comprobaciones y evidencias.</div>
+
+{% if not entries %}
+<p>No hay resultados en este run.</p>
+{% else %}
+<h2>Escenarios por mercado</h2>
+<div class="wrap">
+<table>
+  <thead><tr><th>Mercado</th><th>Escenario</th><th>Resultado</th><th>PASS</th><th>Perfil</th><th>Juego</th><th>Detalle</th></tr></thead>
+  <tbody>
+  {% for e in entries %}
+    {% set run = e.run %}
+    <tr>
+      <td>{{ run.market }}</td>
+      <td>{{ run.scenario.value }}</td>
+      <td><span class="badge {{ run.outcome }}">{{ run.outcome }}</span></td>
+      <td>{{ run.results|selectattr("status", "equalto", "PASS")|list|length }} / {{ run.results|length }}</td>
+      <td>{{ run.provider or "—" }}</td>
+      <td>{{ run.game or "—" }}</td>
+      <td><a href="{{ e.link }}">informe</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}
