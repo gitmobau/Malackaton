@@ -12,11 +12,11 @@ from pathlib import Path
 from betsson.core import CheckId, CheckResult, Money, Reading
 
 
-def _evidence(readings: dict[str, Reading | None]) -> tuple[Path, ...]:
+def evidence_of(readings: dict[str, Reading | None]) -> tuple[Path, ...]:
     return tuple(r.evidence_path for r in readings.values() if r is not None and r.evidence_path is not None)
 
 
-def _amounts(readings: dict[str, Reading | None]) -> tuple[dict[str, Money], str | None]:
+def read_amounts(readings: dict[str, Reading | None]) -> tuple[dict[str, Money], str | None]:
     """Importes leídos y, si alguno falta o difiere la moneda, el motivo de no concluyente."""
     missing = []
     for name, r in readings.items():
@@ -55,8 +55,8 @@ def reconcile(
     """Comprueba que after = before − wager + payout, dentro de la tolerancia."""
     _check_tolerance(tolerance)
     readings = {"saldo antes": before, "apuesta": wager, "ganancia": payout, "saldo después": after}
-    evidence = _evidence(readings)
-    amounts, problem = _amounts(readings)
+    evidence = evidence_of(readings)
+    amounts, problem = read_amounts(readings)
     if problem:
         return CheckResult.inconclusive(check_id, problem, evidence=evidence)
 
@@ -76,8 +76,8 @@ def unchanged(
     """Comprueba que el saldo no ha cambiado (S2), dentro de la tolerancia."""
     _check_tolerance(tolerance)
     readings = {"saldo antes": before, "saldo después": after}
-    evidence = _evidence(readings)
-    amounts, problem = _amounts(readings)
+    evidence = evidence_of(readings)
+    amounts, problem = read_amounts(readings)
     if problem:
         return CheckResult.inconclusive(check_id, problem, evidence=evidence)
 
