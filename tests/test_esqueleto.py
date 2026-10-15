@@ -6,7 +6,7 @@ import importlib
 
 import pytest
 
-DEPENDENCIAS = ["cv2", "rapidocr_onnxruntime", "pydantic", "imagehash", "jinja2", "playwright", "PIL", "numpy"]
+DEPENDENCIAS = ["cv2", "rapidocr", "onnxruntime", "pydantic", "imagehash", "jinja2", "playwright", "PIL", "numpy"]
 
 
 @pytest.mark.unit

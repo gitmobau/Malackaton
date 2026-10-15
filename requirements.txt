@@ -30,7 +30,9 @@ pytest-playwright
 
 # Ojos sobre el juego: OCR, imagen y hash perceptual (Betsson)
 opencv-python
-rapidocr-onnxruntime
+# rapidocr-onnxruntime (1.x) exige Python < 3.13: usamos rapidocr v3 con onnxruntime (rueda cp314)
+rapidocr>=3
+onnxruntime
 imagehash
 
 # Contratos, configuración e informe (Betsson)

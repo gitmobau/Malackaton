@@ -15,9 +15,11 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 
-load_dotenv()
-
 ROOT = Path(__file__).parent
+
+# Solo el .env de este repo (nunca el de un directorio padre) y nunca en CI.
+if not os.getenv("CI"):
+    load_dotenv(ROOT / ".env")
 VIEWPORT = {"width": 1366, "height": 768}
 
 
