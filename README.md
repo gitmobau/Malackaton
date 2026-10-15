@@ -205,7 +205,7 @@ Qué significa cada resultado y cómo se decide:
 - Aparte, una **huella por juego** (franja de controles y ruta del juego) avisa de que el juego del proveedor ha cambiado desde la última ejecución buena, con capturas de antes y ahora. No cambia el veredicto.
 - **Login asistido**: si una persona inició la sesión (autorizado por los mentores), `login_ok` lo dice con la hora y el informe lo muestra siempre. El resto es automático.
 
-Apuesta (`BET_STRATEGY`): `step` por defecto, que cambia la apuesta una vez y juega con el nuevo valor. También `min` (baja a la mínima) y `current` (juega con la visible). Si la apuesta no cabe en el saldo, baja a la mínima.
+Apuesta (`BET_STRATEGY`): `step` por defecto, que cambia la apuesta una vez y juega con el nuevo valor. También `min` (baja a la mínima) y `current` (juega con la visible). Si la apuesta no cabe en el saldo, baja a la mínima. Se juega siempre con saldo de prueba, que recargan los mentores de Betsson cuando se agota.
 
 En la CI:
 - las evidencias se publican como artifact `evidencias-<mercado>-<run>`, solo si el escáner de secretos sale en verde;
@@ -220,6 +220,7 @@ En la CI:
 - **Login asistido.** Por decisión del mentor, una persona inicia sesión, porque el antibot de Betsson rechaza el login automatizado. El valor del comprobador está en el análisis del canvas, no en el formulario de login.
 - **Las sesiones de Betsson caducan por inactividad** (unos 25-30 min). El login asistido se repite, o al menos se comprueba, justo antes de cada ejecución.
 - **Runner propio.** La ejecución real necesita un equipo en España con escritorio, porque el navegador es visible. Los runners de GitHub tienen IP de EE. UU. y Betsson los geobloquea.
+- **Saldo de prueba limitado.** Cada S1 gasta saldo de la cuenta de prueba; lo recargan los mentores.
 - **Un solo mercado real.** `pe` y `com` están configurados, pero sin cuenta de prueba no se ejecutan en real.
 - **Sin vídeo ni traza en la CI.** Con la sesión iniciada guardarían datos personales del cliente. Las evidencias son capturas.
 
