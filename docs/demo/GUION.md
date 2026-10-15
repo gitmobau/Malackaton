@@ -44,7 +44,8 @@ Si Pages llega a estar activo (`PAGES_ENABLED=true`), el informe también está 
 
 - [ ] **Runner online**: `gh api repos/gitmobau/Malackaton/actions/runners --jq '.runners[] | [.name,.status] | @tsv'` → `portatil-alejandro online`. Si no: `start "runner" /min cmd /c "D:\DevTools\actions-runner\run.cmd"`.
 - [ ] **Saldo de la cuenta** de prueba suficiente para S1 (apuesta mínima) y la cuenta de S2 **sin saldo**. Si no, pedir recarga a los mentores.
-- [ ] **Chrome** instalado y actualizado; cerrar las ventanas de Chrome de A y B en el portátil del runner.
+- [ ] **Login asistido hecho** (10 min antes): una persona inicia sesión en los Chrome de los perfiles `es-main` (puerto 9222) y `es-empty` (puerto 9223) de `D:\MAIKI\Malackathon\.chrome-profiles`, **sin que se vea en el proyector**. Comprobar que responden: `curl -s http://127.0.0.1:9222/json/version` y lo mismo con 9223. Si la sesión caduca, el workflow falla con "repetir login asistido".
+- [ ] **Chrome** instalado y actualizado. Cerrar las demás ventanas de Chrome de A y B en el portátil del runner, pero **no** las dos del login asistido.
 - [ ] **Red**: el lobby de betsson.es carga desde el portátil, sin VPN y sin que salte el WAF.
 - [ ] **Última ejecución buena** descargada en `outputs/demo/` (plan B) y **vídeo de respaldo** abierto en otra ventana.
 - [ ] Ninguna ventana con `.env`, GitHub Secrets ni gestores de contraseñas a la vista. Notificaciones de Windows silenciadas (Asistente de concentración).
