@@ -17,6 +17,11 @@ from dotenv import load_dotenv
 
 ROOT = Path(__file__).parent
 
+# Chromium compartido del portátil (setup-portatil.ps1). Para sesiones abiertas antes de fijar la variable.
+SHARED_BROWSERS = Path(r"D:\DevCache\ms-playwright")
+if SHARED_BROWSERS.is_dir():
+    os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(SHARED_BROWSERS))
+
 # Solo el .env de este repo (nunca el de un directorio padre) y nunca en CI.
 if not os.getenv("CI"):
     load_dotenv(ROOT / ".env")
