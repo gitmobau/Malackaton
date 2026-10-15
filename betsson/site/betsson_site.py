@@ -182,11 +182,32 @@ class BetssonSite:
         self.evidence_dir.mkdir(parents=True, exist_ok=True)
         path = self.evidence_dir / f"{name}.png"
         self.page.bring_to_front()  # una pestaña en segundo plano no se pinta y la captura se cuelga
-        self.page.screenshot(
-            path=path,
-            mask=[self.page.locator(sel.LOGIN_USERNAME), self.page.locator(sel.LOGIN_PASSWORD)],
-            timeout=SCREENSHOT_TIMEOUT_MS,
-        )
+        self.page.screenshot(path=path, mask=self._private_areas(), timeout=SCREENSHOT_TIMEOUT_MS)
+        return path
+
+    def _private_areas(self) -> list[Locator]:
+        """Lo que nunca sale en una captura: los campos del login y el resumen de saldo de la página del juego,
+        que muestra el nombre del titular junto al total. Se tapa el resumen entero (el importe y hasta 3
+        niveles de contenedores): si sigue abierto en una captura de página, no se ve nada de él.
+        """
+        summary = self.page.locator(sel.SUMMARY_BALANCE)
+        return [
+            self.page.locator(sel.LOGIN_USERNAME),
+            self.page.locator(sel.LOGIN_PASSWORD),
+            summary,
+            summary.locator("xpath=ancestor::*[position() <= 3]"),
+        ]
+
+    def _balance_evidence(self, loc: Locator) -> Path | None:
+        """Captura SOLO del importe del saldo (su caja), nunca de la cabecera ni del desplegable con el titular."""
+        self.evidence_dir.mkdir(parents=True, exist_ok=True)
+        path = self.evidence_dir / "betsson_balance.png"
+        try:
+            self.page.bring_to_front()
+            loc.screenshot(path=path, timeout=SCREENSHOT_TIMEOUT_MS)
+        except PlaywrightError:
+            log.warning("no se pudo guardar la captura del saldo")
+            return None
         return path
 
     # ------------------------------------------------------------------ navegación
@@ -458,7 +479,7 @@ class BetssonSite:
             while True:
                 if time.monotonic() >= deadline:
                     return Reading(
-                        raw_text=text, reason="saldo no estable", evidence_path=self._safe_screenshot("betsson_balance")
+                        raw_text=text, reason="saldo no estable", evidence_path=self._balance_evidence(loc)
                     )
                 handle = loc.element_handle()
                 try:  # señal: el texto del elemento cambia dentro de la ventana; si no cambia, está estable
@@ -472,13 +493,13 @@ class BetssonSite:
                 text = loc.inner_text().strip()
             money = parse_money(text, self.market, require_currency=True)
         except (PlaywrightError, MoneyParseError) as exc:
-            return Reading(reason=f"saldo de Betsson ilegible: {exc}", evidence_path=self._safe_screenshot("betsson_balance"))
+            return Reading(reason=f"saldo de Betsson ilegible: {exc}", evidence_path=self._balance_evidence(loc))
         return Reading(
             raw_text=text,
             money=money,
             currency_seen=True,
             confidence=1.0,
-            evidence_path=self._safe_screenshot("betsson_balance"),
+            evidence_path=self._balance_evidence(loc),
         )
 
     # ------------------------------------------------------------------ juegos
