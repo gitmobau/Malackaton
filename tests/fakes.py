@@ -72,6 +72,7 @@ class FakeBetssonSite:
     out_dir: Path
     logged_in: bool = True
     handle: FakeGameHandle = field(default_factory=FakeGameHandle)
+    login_assisted: bool = False
     open_error: str | None = None
 
     def login(self) -> bool:

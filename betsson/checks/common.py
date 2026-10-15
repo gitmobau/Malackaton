@@ -11,9 +11,15 @@ from betsson.core import CheckId, CheckResult, FailureKind, MarketContext, PlayM
 NOT_SCREEN_CHECKS = frozenset({CheckId.LOGIN_OK, CheckId.REAL_PLAY, CheckId.BETSSON_BALANCE_BEFORE})
 
 
-def login_check(logged_in: bool | None) -> CheckResult:
+LOGIN_ASSISTED_WARNING = "login asistido por una persona: el resto de la ejecución es automática"
+
+
+def login_check(logged_in: bool | None, assisted: bool = False) -> CheckResult:
     if logged_in is None:
         return CheckResult.inconclusive(CheckId.LOGIN_OK, "no se llegó a intentar el login")
+    if logged_in and assisted:
+        return CheckResult.passed(CheckId.LOGIN_OK, "sesión iniciada (login asistido por una persona)",
+                                  observed="asistido")
     if logged_in:
         return CheckResult.passed(CheckId.LOGIN_OK, "sesión iniciada")
     return CheckResult.failed(CheckId.LOGIN_OK, "no se pudo iniciar sesión")

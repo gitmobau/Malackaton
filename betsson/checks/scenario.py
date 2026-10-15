@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from betsson.checks.common import LOGIN_ASSISTED_WARNING
 from betsson.checks.s1 import S1Observation, evaluate_s1
 from betsson.checks.s2 import S2Observation, evaluate_s2
 from betsson.core import (
@@ -56,6 +57,7 @@ def _prepare(
 ) -> GameEyes | None:
     """Login, saldo inicial, apertura del juego y perfil. Devuelve los ojos o None."""
     obs["logged_in"] = site.login()
+    obs["login_assisted"] = bool(site.login_assisted)
     if not obs["logged_in"]:
         return None
     obs["betsson_before"] = site.read_balance()
@@ -181,6 +183,8 @@ def run_scenario(
     started = datetime.now(timezone.utc)
     obs, extra = _collect(scenario, site, registry, eyes_factory, market, slug, bet_target)
     warnings = [f"PROVIDER_UI_CHANGED: {obs['ui_changed']}"] if obs.get("ui_changed") else []
+    if obs.get("login_assisted"):
+        warnings.insert(0, LOGIN_ASSISTED_WARNING)
     error = extra["error"]
     try:
         results = tuple(_evaluate(scenario, obs, market))

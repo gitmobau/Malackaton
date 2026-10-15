@@ -299,3 +299,16 @@ def test_real_play_shows_player_steps_from_betsson(tmp_path: Path) -> None:
     r = by_id(run)[CheckId.REAL_PLAY]
     assert r.status == "PASS" and "límites de sesión" in r.reason
     assert r.evidence == (Path("session_limits_dialog.png"),)
+
+
+def test_assisted_login_is_pass_but_never_hidden(tmp_path: Path) -> None:
+    run = run_s1(tmp_path, site_kw={"login_assisted": True})
+    r = by_id(run)[CheckId.LOGIN_OK]
+    assert r.status == "PASS" and "asistido por una persona" in r.reason
+    assert any("login asistido" in w for w in run.warnings)
+    assert "login asistido" in (tmp_path / "report.html").read_text(encoding="utf-8")
+
+
+def test_autonomous_login_has_no_assisted_warning(tmp_path: Path) -> None:
+    run = run_s1(tmp_path)
+    assert not any("asistido" in w for w in run.warnings)
