@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from betsson.checks.balance import unchanged
@@ -15,6 +16,7 @@ class S2Observation:
 
     logged_in: bool | None = None
     login_assisted: bool = False
+    login_assisted_at: datetime | None = None
     play_mode: PlayMode | None = None
     play_mode_reason: str | None = None
     open_evidence: tuple[Path, ...] = ()  # pasos del jugador al abrir el juego
@@ -83,7 +85,7 @@ def _message_language(obs: S2Observation, market: MarketContext) -> CheckResult:
 def evaluate_s2(obs: S2Observation, market: MarketContext) -> list[CheckResult]:
     tol = market.money_tolerance
     results = [
-        login_check(obs.logged_in, obs.login_assisted),
+        login_check(obs.logged_in, obs.login_assisted, obs.login_assisted_at),
         real_play_check(obs.play_mode, obs.open_error, obs.play_mode_reason, obs.open_evidence),
         currency_check([obs.game_before, obs.bet, obs.game_after], [obs.betsson_before, obs.betsson_after], market),
         _spin_rejected(obs),

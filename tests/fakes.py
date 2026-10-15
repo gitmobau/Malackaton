@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -73,6 +74,7 @@ class FakeBetssonSite:
     logged_in: bool = True
     handle: FakeGameHandle = field(default_factory=FakeGameHandle)
     login_assisted: bool = False
+    login_assisted_at: datetime | None = None
     open_error: str | None = None
 
     def login(self) -> bool:

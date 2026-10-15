@@ -312,3 +312,18 @@ def test_assisted_login_is_pass_but_never_hidden(tmp_path: Path) -> None:
 def test_autonomous_login_has_no_assisted_warning(tmp_path: Path) -> None:
     run = run_s1(tmp_path)
     assert not any("asistido" in w for w in run.warnings)
+
+
+def test_assisted_login_reason_has_time(tmp_path: Path) -> None:
+    from datetime import datetime, timezone
+
+    at = datetime(2026, 10, 15, 14, 5, tzinfo=timezone.utc)
+    run = run_s1(tmp_path, site_kw={"login_assisted": True, "login_assisted_at": at})
+    assert at.astimezone().strftime("%H:%M") in by_id(run)[CheckId.LOGIN_OK].reason
+
+
+def test_assisted_without_session_is_inconclusive_not_failure(tmp_path: Path) -> None:
+    run = run_s1(tmp_path, site_kw={"login_assisted": True, "logged_in": False})
+    r = by_id(run)[CheckId.LOGIN_OK]
+    assert r.failure_kind is FailureKind.INCONCLUSIVE and "caducada o ausente" in r.reason
+    assert run.outcome == "INCONCLUSIVE"

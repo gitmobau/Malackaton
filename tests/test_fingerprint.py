@@ -103,3 +103,26 @@ def test_without_store_there_is_no_fingerprint(tmp_path: Path) -> None:
     run = run_scenario(market=FakeMarket(), scenario=Scenario.S1, site=site, registry=registry,
                        eyes_factory=factory(eyes), slug="fake-slot", out_dir=tmp_path, run_id="r")
     assert not any("huella" in w for w in run.warnings)
+
+
+def test_token_like_path_segments_are_masked() -> None:
+    url = "https://games.example.test/launch/4f9c2a7be1d04c3a9b8e7f6a5d4c3b2a/index.html?x=1"
+    assert iframe_path(url) == "https://games.example.test/launch/*/index.html"
+
+
+def test_market_and_game_names_cannot_escape_store(tmp_path: Path) -> None:
+    store = BaselineStore(tmp_path / "b")
+    f = take(game_frame(), iframe_url=URL, market="../x", game="../../evil", provider=None, run_id="r")
+    store.save(f, game_frame())
+    files = [p for p in tmp_path.rglob("*") if p.is_file()]
+    assert files and all((tmp_path / "b") in p.parents for p in files)
+
+
+def test_different_canvas_shape_is_not_comparable(tmp_path: Path) -> None:
+    from betsson.report.fingerprint import check_drift
+
+    store = BaselineStore(tmp_path / "b")
+    store.save(fp(game_frame()), game_frame())
+    narrow = game_frame()[:, :700]
+    warnings, evidence = check_drift(store, narrow, fp(narrow), tmp_path / "out", update=False)
+    assert any("no comparable" in w for w in warnings) and evidence == ()

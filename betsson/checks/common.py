@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from datetime import datetime
 from pathlib import Path
 
 from betsson.core import CheckId, CheckResult, FailureKind, MarketContext, PlayMode, Reading
@@ -14,11 +15,16 @@ NOT_SCREEN_CHECKS = frozenset({CheckId.LOGIN_OK, CheckId.REAL_PLAY, CheckId.BETS
 LOGIN_ASSISTED_WARNING = "login asistido por una persona: el resto de la ejecución es automática"
 
 
-def login_check(logged_in: bool | None, assisted: bool = False) -> CheckResult:
+def login_check(logged_in: bool | None, assisted: bool = False, assisted_at: datetime | None = None) -> CheckResult:
     if logged_in is None:
         return CheckResult.inconclusive(CheckId.LOGIN_OK, "no se llegó a intentar el login")
+    if assisted and not logged_in:
+        # Sin sesión humana válida no se puede juzgar la integración de Betsson.
+        return CheckResult.inconclusive(CheckId.LOGIN_OK, "sesión caducada o ausente en el login asistido",
+                                        observed="sin sesión")
     if logged_in and assisted:
-        return CheckResult.passed(CheckId.LOGIN_OK, "sesión iniciada (login asistido por una persona)",
+        when = f" a las {assisted_at.astimezone().strftime('%H:%M')}" if assisted_at else ""
+        return CheckResult.passed(CheckId.LOGIN_OK, f"sesión de jugador válida (login asistido por una persona{when})",
                                   observed="asistido")
     if logged_in:
         return CheckResult.passed(CheckId.LOGIN_OK, "sesión iniciada")

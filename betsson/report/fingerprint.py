@@ -11,6 +11,9 @@ desde la última ejecución" con las capturas de antes y después.
 """
 from __future__ import annotations
 
+import hashlib
+import os
+import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,6 +29,8 @@ HASH_SIZE = 8  # 64 bits
 MAX_DISTANCE = 10  # bits distintos tolerados en la franja de controles
 BEFORE_FILE = "fingerprint_before.png"
 NOW_FILE = "fingerprint_now.png"
+MAX_ASPECT_DIFF = 0.05  # si el canvas cambia de proporción, la huella no es comparable
+_TOKENISH = re.compile(r"^[A-Za-z0-9_\-=.]{17,}$")  # segmentos de ruta que parecen ids o tokens
 
 
 def _now() -> datetime:
@@ -38,21 +43,30 @@ class GameFingerprint(BaseModel):
     market: str
     game: str
     provider: str | None = None
-    iframe_path: str  # esquema + host + ruta, sin query ni fragmento
+    iframe_path: str  # esquema + host + ruta, sin query ni fragmento y con tokens tapados
     controls_hash: str
+    canvas_w: int = 0
+    canvas_h: int = 0
     run_id: str
     created_at: datetime = Field(default_factory=_now)
 
 
 def iframe_path(url: str) -> str:
     parts = urlsplit(url)
-    return f"{parts.scheme}://{parts.netloc}{parts.path}"
+    path = "/".join("*" if _TOKENISH.match(seg) else seg for seg in parts.path.split("/"))
+    return f"{parts.scheme}://{parts.netloc}{path}"
+
+
+def _rgb(frame: np.ndarray) -> np.ndarray:
+    if frame.ndim == 2:
+        return np.stack([frame] * 3, axis=-1)
+    return frame[:, :, :3]
 
 
 def _controls(frame: np.ndarray) -> Image.Image:
-    height = frame.shape[0]
-    top = int(height * (1 - CONTROLS_BAND))
-    return Image.fromarray(frame[top:, :, :3].astype(np.uint8))
+    rgb = _rgb(frame)
+    top = int(rgb.shape[0] * (1 - CONTROLS_BAND))
+    return Image.fromarray(rgb[top:].astype(np.uint8))
 
 
 def take(frame: np.ndarray, *, iframe_url: str, market: str, game: str, provider: str | None,
@@ -60,7 +74,15 @@ def take(frame: np.ndarray, *, iframe_url: str, market: str, game: str, provider
     return GameFingerprint(
         market=market, game=game, provider=provider, iframe_path=iframe_path(iframe_url),
         controls_hash=str(imagehash.phash(_controls(frame), hash_size=HASH_SIZE)), run_id=run_id,
+        canvas_w=int(frame.shape[1]), canvas_h=int(frame.shape[0]),
     )
+
+
+def comparable(before: GameFingerprint, now: GameFingerprint) -> bool:
+    if not (before.canvas_w and before.canvas_h and now.canvas_w and now.canvas_h):
+        return True
+    a, b = before.canvas_w / before.canvas_h, now.canvas_w / now.canvas_h
+    return abs(a - b) / a <= MAX_ASPECT_DIFF
 
 
 def compare(before: GameFingerprint, now: GameFingerprint) -> list[str]:
@@ -82,9 +104,15 @@ class BaselineStore:
     def __init__(self, root: Path) -> None:
         self.root = root
 
+    @staticmethod
+    def _safe(name: str) -> str:
+        if not name.strip():
+            raise ValueError("nombre vacío para la huella")
+        clean = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)[:60]
+        return f"{clean}-{hashlib.sha1(name.encode()).hexdigest()[:8]}"
+
     def _paths(self, market: str, game: str) -> tuple[Path, Path]:
-        safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in game)
-        base = self.root / market / safe
+        base = self.root / self._safe(market) / self._safe(game)
         return base.with_suffix(".json"), base.with_suffix(".png")
 
     def load(self, market: str, game: str) -> tuple[GameFingerprint, Path] | None:
@@ -99,8 +127,26 @@ class BaselineStore:
     def save(self, fp: GameFingerprint, frame: np.ndarray) -> None:
         meta, image = self._paths(fp.market, fp.game)
         meta.parent.mkdir(parents=True, exist_ok=True)
-        _controls(frame).save(image)
-        meta.write_text(fp.model_dump_json(indent=2), encoding="utf-8")
+        tmp_image, tmp_meta = image.with_suffix(".png.tmp"), meta.with_suffix(".json.tmp")
+        _controls(frame).save(tmp_image, format="PNG")
+        tmp_meta.write_text(fp.model_dump_json(indent=2), encoding="utf-8")
+        os.replace(tmp_image, image)  # primero la imagen, después el json que la referencia
+        os.replace(tmp_meta, meta)
+
+
+def _drift_evidence(frame: np.ndarray, before_image: Path, out_dir: Path) -> tuple[Path, ...]:
+    """Capturas de antes y ahora en out_dir. Un fallo al copiar solo quita esa captura."""
+    paths: list[Path] = []
+    out_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        if before_image.exists():
+            shutil.copyfile(before_image, out_dir / BEFORE_FILE)
+            paths.append(out_dir / BEFORE_FILE)
+    except OSError:
+        pass  # sin la captura de antes el aviso sigue siendo válido
+    now_path = out_dir / NOW_FILE
+    _controls(frame).save(now_path)
+    return (*paths, now_path)
 
 
 def check_drift(store: BaselineStore, frame: np.ndarray, fp: GameFingerprint, out_dir: Path,
@@ -114,16 +160,14 @@ def check_drift(store: BaselineStore, frame: np.ndarray, fp: GameFingerprint, ou
                         else "sin huella de referencia del juego (se crea con la primera ejecución en PASS)")
     else:
         before, before_image = previous
-        reasons = compare(before, fp)
+        if not comparable(before, fp):
+            warnings.append(f"huella no comparable: el canvas pasó de {before.canvas_w}x{before.canvas_h} "
+                            f"a {fp.canvas_w}x{fp.canvas_h}")
+            reasons: list[str] = []
+        else:
+            reasons = compare(before, fp)
         if reasons:
-            out_dir.mkdir(parents=True, exist_ok=True)
-            now_path = out_dir / NOW_FILE
-            _controls(frame).save(now_path)
-            paths = [now_path]
-            if before_image.exists():
-                shutil.copyfile(before_image, out_dir / BEFORE_FILE)
-                paths.insert(0, out_dir / BEFORE_FILE)
-            evidence = tuple(paths)
+            evidence = _drift_evidence(frame, before_image, out_dir)
             warnings.append(f"el juego del proveedor ha cambiado desde la última ejecución ({before.run_id}): "
                             + "; ".join(reasons))
     if update:

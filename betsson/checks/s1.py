@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from betsson.checks.balance import evidence_of, read_amounts, reconcile
@@ -22,6 +23,7 @@ class S1Observation:
 
     logged_in: bool | None = None
     login_assisted: bool = False
+    login_assisted_at: datetime | None = None
     play_mode: PlayMode | None = None
     play_mode_reason: str | None = None
     open_evidence: tuple[Path, ...] = ()  # pasos del jugador al abrir el juego
@@ -84,7 +86,7 @@ def _wager_is_used_wager(obs: S1Observation, market: MarketContext) -> CheckResu
 def evaluate_s1(obs: S1Observation, market: MarketContext) -> list[CheckResult]:
     tol = market.money_tolerance
     results = [
-        login_check(obs.logged_in, obs.login_assisted),
+        login_check(obs.logged_in, obs.login_assisted, obs.login_assisted_at),
         real_play_check(obs.play_mode, obs.open_error, obs.play_mode_reason, obs.open_evidence),
         currency_check([obs.game_before, obs.bet, obs.win, obs.game_after], [obs.betsson_before, obs.betsson_after], market),
         read_check(CheckId.BETSSON_BALANCE_BEFORE, obs.betsson_before, "saldo de Betsson antes"),

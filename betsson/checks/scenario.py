@@ -14,6 +14,7 @@ import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 from betsson.checks.common import LOGIN_ASSISTED_WARNING
@@ -56,8 +57,10 @@ def _prepare(
     market: MarketContext, slug: str, obs: dict[str, Any], extra: dict[str, Any],
 ) -> GameEyes | None:
     """Login, saldo inicial, apertura del juego y perfil. Devuelve los ojos o None."""
-    obs["logged_in"] = site.login()
+    # El modo asistido se conoce desde el constructor: se anota antes, por si login() falla.
     obs["login_assisted"] = bool(site.login_assisted)
+    obs["logged_in"] = site.login()
+    obs["login_assisted_at"] = site.login_assisted_at
     if not obs["logged_in"]:
         return None
     obs["betsson_before"] = site.read_balance()
@@ -72,17 +75,25 @@ def _prepare(
     profile = registry.resolve(handle.iframe_url, handle.capture())
     extra["provider"] = profile.name
     registry.ensure_recognized(profile, handle.capture())  # ProviderUIChanged sube a run_scenario
-    eyes = eyes_factory(handle, profile, market)
-    # Pantalla de juego lista (B ya cerró la intro): base de la huella de referencia.
-    extra["frame"], extra["iframe_url"] = handle.capture(), handle.iframe_url
-    return eyes
+    extra["handle"] = handle
+    return eyes_factory(handle, profile, market)
 
 
-def _play_s1(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target: BetTarget) -> None:
+def _fingerprint_frame(obs: dict[str, Any], extra: dict[str, Any]) -> None:
+    """Captura para la huella solo cuando el juego ya está listo (se leyó su saldo)."""
+    reading = obs.get("game_before")
+    handle = extra.get("handle")
+    if handle is not None and reading is not None and reading.ok:
+        extra["frame"], extra["iframe_url"] = handle.capture(), handle.iframe_url
+
+
+def _play_s1(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target: BetTarget,
+             on_ready: Callable[[], None]) -> None:
     # El saldo del juego solo se lee ANTES de pulsar girar y DESPUÉS de que la tirada
     # termine (wait_spin_end); nunca a mitad de giro, porque no se sabe cuándo descuenta.
     obs["bet"] = eyes.set_bet(bet_target)
     obs["game_before"] = eyes.read_balance()
+    on_ready()
     obs["spin_started"] = eyes.spin()
     if not obs["spin_started"]:
         return
@@ -95,10 +106,12 @@ def _play_s1(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target:
     obs["betsson_after"] = site.read_balance()
 
 
-def _play_s2(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target: BetTarget) -> None:
+def _play_s2(eyes: GameEyes, site: BetssonSite, obs: dict[str, Any], bet_target: BetTarget,
+             on_ready: Callable[[], None]) -> None:
     # Cuenta sin saldo: basta la mínima. Cuenta con saldo: bet_target="above_balance".
     obs["bet"] = eyes.set_bet(bet_target)
     obs["game_before"] = eyes.read_balance()
+    on_ready()
     obs["spin_started"] = eyes.spin()
     if obs["spin_started"] and not eyes.wait_spin_end().completed:
         return  # la tirada no debía empezar; sin fin visible no se lee el saldo a mitad de giro
@@ -150,11 +163,13 @@ def _collect(scenario: Scenario, site: BetssonSite, registry: ProviderRegistry, 
              market: MarketContext, slug: str, bet_target: BetTarget) -> tuple[dict[str, Any], dict[str, Any]]:
     """Ejecuta los pasos. Devuelve (observación, extra con provider/error/evidence)."""
     obs: dict[str, Any] = {}
-    extra: dict[str, Any] = {"provider": None, "error": None, "evidence": (), "frame": None, "iframe_url": None}
+    extra: dict[str, Any] = {"provider": None, "error": None, "evidence": (), "frame": None, "iframe_url": None,
+                             "handle": None}
     try:
         eyes = _prepare(site, registry, eyes_factory, market, slug, obs, extra)
         if eyes is not None:
-            (_play_s1 if scenario is Scenario.S1 else _play_s2)(eyes, site, obs, bet_target)
+            play = _play_s1 if scenario is Scenario.S1 else _play_s2
+            play(eyes, site, obs, bet_target, lambda: _fingerprint_frame(obs, extra))
     except ProviderUIChanged as exc:
         obs["ui_changed"] = safe_error(exc.reason)
         extra["evidence"] = tuple(exc.evidence)
