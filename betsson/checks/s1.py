@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from datetime import datetime
 from pathlib import Path
 
@@ -38,6 +39,25 @@ class S1Observation:
     bet_after: Reading | None = None
     betsson_after: Reading | None = None
     ui_changed: str | None = None  # motivo si el perfil dejó de reconocer el juego
+    min_bet: Decimal | None = None  # apuesta mínima del mercado (S1 no gira por encima)
+
+
+def bet_not_minimum(bet: Reading | None, min_bet: Decimal | None, tolerance: Decimal) -> str | None:
+    """Motivo para no girar si la apuesta visible no es la mínima (o no se pudo leer)."""
+    if bet is None or bet.money is None:
+        return "no se pudo leer la apuesta visible: no se gira"
+    if min_bet is not None and bet.money.amount - min_bet > tolerance:
+        return f"la apuesta visible {bet.money} no es la mínima del mercado ({min_bet}): no se gira"
+    return None
+
+
+def _wager_read(obs: S1Observation, market: MarketContext) -> CheckResult:
+    result = positive_read_check(CheckId.WAGER_READ, obs.bet, "apuesta visible")
+    problem = bet_not_minimum(obs.bet, obs.min_bet, market.money_tolerance)
+    if result.status == "PASS" and problem:
+        return CheckResult.inconclusive(CheckId.WAGER_READ, problem, observed=result.observed,
+                                        expected=str(obs.min_bet), evidence=result.evidence)
+    return result
 
 
 def _spin_started(obs: S1Observation) -> CheckResult:
@@ -90,7 +110,7 @@ def evaluate_s1(obs: S1Observation, market: MarketContext) -> list[CheckResult]:
         real_play_check(obs.play_mode, obs.open_error, obs.play_mode_reason, obs.open_evidence),
         currency_check([obs.game_before, obs.bet, obs.win, obs.game_after], [obs.betsson_before, obs.betsson_after], market),
         read_check(CheckId.BETSSON_BALANCE_BEFORE, obs.betsson_before, "saldo de Betsson antes"),
-        positive_read_check(CheckId.WAGER_READ, obs.bet, "apuesta visible"),
+        _wager_read(obs, market),
         _spin_started(obs),
         _spin_completed(obs),
         read_check(CheckId.PAYOUT_READ, obs.win, "ganancia"),

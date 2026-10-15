@@ -4,7 +4,9 @@ Solo en el runner propio en España: `pytest -m real --market es --headed`.
 - El juego se elige con GAME_SLUG (variable de entorno o de la CI): ningún proveedor ni
   juego fijo en el código.
 - Los mercados con real_execution_enabled=false (sin cuenta) se saltan con motivo.
-- S1 usa la cuenta con saldo y S2 la cuenta sin saldo (account="empty").
+- S1 usa la cuenta con saldo y S2 la cuenta sin saldo (account="empty"). Solo S2:
+  `pytest -m real -k s2`. Plan B sin cuenta vacía: S2_ACCOUNT=funded S2_BET_TARGET=above_balance
+  (run_scenario comprueba la precondición: apuesta visible > saldo visible).
 - Modo de login (LOGIN_MODE):
   - "session" (por defecto si el mercado tiene site.browser_session): login asistido por
     una persona, autorizado por los mentores. El comprobador se conecta por CDP al Chrome
@@ -44,6 +46,10 @@ registry_mod = pytest.importorskip("betsson.profiles.registry", reason="falta el
 
 VIEWPORT = {"width": 1366, "height": 768}
 ACCOUNTS = {Scenario.S1: "funded", Scenario.S2: "empty"}
+# S2 por defecto: cuenta sin saldo y apuesta mínima. Plan B si la cuenta vacía no está lista:
+# S2_ACCOUNT=funded y S2_BET_TARGET=above_balance (apuesta por encima del saldo visible).
+S2_ACCOUNT = os.getenv("S2_ACCOUNT", "empty").strip().lower()
+S2_BET_TARGET = os.getenv("S2_BET_TARGET", "min").strip().lower()
 # Huellas de referencia por juego: en el runner propio persisten entre ejecuciones.
 BASELINES = BaselineStore(Path(os.getenv("BASELINE_DIR", "outputs/baselines")) / "game")
 
@@ -122,13 +128,19 @@ def player(request: pytest.FixtureRequest, market: Any, login_mode: str) -> Iter
 
 def _run(scenario: Scenario, player: _Player, market: Any, slug: str, run_id: str, evidence_dir: Path) -> RunResult:
     out = _scenario_dir(evidence_dir, scenario)
-    site = player.site(ACCOUNTS[scenario], out)
+    account = S2_ACCOUNT if scenario is Scenario.S2 else ACCOUNTS[scenario]
+    bet_target = S2_BET_TARGET if scenario is Scenario.S2 else "min"
+    if account not in {"funded", "empty"} or bet_target not in {"min", "above_balance"}:
+        pytest.fail(f"configuración de S2 no válida: S2_ACCOUNT={account!r}, S2_BET_TARGET={bet_target!r}")
+    if scenario is Scenario.S2 and account == "funded" and bet_target != "above_balance":
+        pytest.fail("S2 con la cuenta con saldo necesita S2_BET_TARGET=above_balance")
+    site = player.site(account, out)
     site.goto_lobby()
     run = run_scenario(
         market=market, scenario=scenario, site=site,
         registry=registry_mod.Registry(evidence_dir=out),
         eyes_factory=factory_mod.GameEyesFactory(evidence_dir=out),
-        slug=slug, out_dir=out, run_id=run_id, baselines=BASELINES,
+        slug=slug, out_dir=out, run_id=run_id, baselines=BASELINES, bet_target=bet_target,
     )
     render_index(out.parent.parent)
     login = next((r for r in run.results if r.id is CheckId.LOGIN_OK), None)

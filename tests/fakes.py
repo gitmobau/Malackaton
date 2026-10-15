@@ -37,6 +37,7 @@ class FakeMarket:
     currency_code: str = "EUR"
     language: str = "es"
     money_tolerance: Decimal = Decimal("0.01")
+    min_bet: Decimal = Decimal("0.10")
 
 
 def reading(amount: str | None, currency: str = "EUR", *, seen: bool = True, text: str | None = None,
@@ -62,6 +63,7 @@ class FakeGameHandle:
     play_mode_reason: str | None = "Betsson pidió los límites de sesión del regulador"
     evidence: tuple[Path, ...] = ()
     frame: np.ndarray | None = None  # canvas simulado; None = negro
+    notices: tuple = ()
 
     def capture(self) -> np.ndarray:
         return self.frame if self.frame is not None else np.zeros((36, 64, 3), dtype=np.uint8)

@@ -103,6 +103,13 @@ class Reading(_Frozen):
         return self.money is not None
 
 
+class Notice(_Frozen):
+    """Aviso visible de la web de Betsson al abrir el juego (p. ej. el diálogo de la DGOJ sin saldo)."""
+
+    text: str
+    evidence_path: EvidencePath | None = None
+
+
 class SpinEnd(_Frozen):
     completed: bool
     duration_s: float = Field(default=0.0, ge=0)
@@ -134,6 +141,7 @@ class MarketContext(Protocol):
     currency_code: str  # ISO 4217 ("EUR", "PEN")
     language: str  # "es", "en"
     money_tolerance: Decimal  # diferencia máxima admitida al cuadrar saldos
+    min_bet: Decimal  # apuesta mínima del mercado: S1 nunca gira por encima de ella
 
 
 # --- Proveedor -----------------------------------------------------------------
@@ -186,6 +194,7 @@ class GameHandle(Protocol):
     play_mode: PlayMode  # leído de la web de Betsson o de la pantalla, nunca supuesto
     play_mode_reason: str | None  # por qué se decidió play_mode (p. ej. "Betsson pidió los límites de sesión")
     evidence: tuple[Path, ...]  # pasos del jugador al abrir el juego (diálogo de límites, juego abierto…)
+    notices: tuple[Notice, ...]  # avisos visibles de Betsson al abrir el juego (se muestran en el informe)
 
     def capture(self) -> np.ndarray:
         """Captura actual del canvas del juego (RGB)."""
