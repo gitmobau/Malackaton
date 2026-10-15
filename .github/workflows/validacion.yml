@@ -186,8 +186,11 @@ jobs:
           BETSSON_PASSWORD: ${{ secrets[format('BETSSON_{0}_PASSWORD', matrix.secret_prefix)] }}
           BETSSON_EMPTY_USERNAME: ${{ secrets[format('BETSSON_{0}_EMPTY_USERNAME', matrix.secret_prefix)] }}
           BETSSON_EMPTY_PASSWORD: ${{ secrets[format('BETSSON_{0}_EMPTY_PASSWORD', matrix.secret_prefix)] }}
+          # Nombre del titular de cada cuenta: se busca en textos y, con OCR, en las capturas (repo público).
+          BETSSON_HOLDER_NAME: ${{ secrets[format('BETSSON_{0}_HOLDER_NAME', matrix.secret_prefix)] }}
+          BETSSON_EMPTY_HOLDER_NAME: ${{ secrets[format('BETSSON_{0}_EMPTY_HOLDER_NAME', matrix.secret_prefix)] }}
         run: |
-          & $env:VENV_PY .github/scripts/scan_secrets.py outputs
+          & $env:VENV_PY .github/scripts/scan_secrets.py outputs --require-holder
           exit $LASTEXITCODE
 
       - name: Publicar evidencias e informe
