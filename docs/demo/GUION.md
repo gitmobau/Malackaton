@@ -25,7 +25,7 @@ Desde una terminal del portátil, con `gh` y la sesión iniciada (cuenta del equ
 # 1) Lanzar la validación real en el mercado español
 gh workflow run "Validación de juegos" -R gitmobau/Malackaton --ref main -f markets=es
 #    Solo un escenario: añadir -f scenarios=s1 (tirada completa) o -f scenarios=s2 (saldo insuficiente).
-#    Por defecto, s1,s2.
+#    Por defecto, s1,s2. Solo se exige el Chrome del escenario pedido (S1 → 9222, S2 → 9223).
 
 # 2) Seguirla en directo (coge la última ejecución del workflow)
 RUN=$(gh run list -R gitmobau/Malackaton -w "Validación de juegos" -L 1 --json databaseId -q '.[0].databaseId')

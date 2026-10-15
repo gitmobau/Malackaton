@@ -102,6 +102,38 @@ jobs:
           Remove-Item -Recurse -Force outputs -ErrorAction SilentlyContinue
           exit 0
 
+      - name: Elegir escenarios
+        # s1 → -k "not real_s2" y solo el puerto de la cuenta con saldo; s2 → -k "not real_s1" y solo el de
+        # la cuenta sin saldo; s1,s2 → sin -k y los dos. Los tests sin red se ejecutan siempre.
+        # CDP_PORTS: "<puerto S1>,<puerto S2>".
+        id: esc
+        if: env.ENABLED == 'true'
+        shell: powershell
+        env:
+          CDP_PORTS: ${{ vars.CDP_PORTS || '9222,9223' }}
+        run: |
+          $pedidos = @("$env:SCENARIOS".ToLower().Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique)
+          $raros = @($pedidos | Where-Object { $_ -notin 's1','s2' })
+          $puertos = @("$env:CDP_PORTS".Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+          if ($pedidos.Count -eq 0 -or $raros.Count -gt 0) {
+            Write-Output "::error::Input scenarios no válido: usa s1, s2 o s1,s2."
+            exit 1
+          }
+          if ($puertos.Count -ne 2) {
+            Write-Output "::error::CDP_PORTS debe ser '<puerto S1>,<puerto S2>' (p. ej. 9222,9223)."
+            exit 1
+          }
+          $filtro = ''
+          $usar = $puertos
+          if ($pedidos.Count -eq 1) {
+            $i = [array]::IndexOf(@('s1','s2'), $pedidos[0])
+            $filtro = "not real_$(@('s2','s1')[$i])"
+            $usar = @($puertos[$i])
+          }
+          Write-Output "Escenarios: $($pedidos -join ','); -k: '$filtro'; puertos CDP: $($usar -join ',')"
+          # Sin BOM: Out-File -Encoding utf8 de PowerShell 5.1 lo añade y estropea la primera salida.
+          [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "filtro=$filtro`npuertos=$($usar -join ',')`n", [Text.UTF8Encoding]::new($false))
+
       - name: Comprobar el login asistido (Chrome con sesión abierta)
         # Login asistido autorizado por el mentor: una persona inicia sesión en Chrome (perfiles en
         # D:\MAIKI\Malackathon\.chrome-profiles) y el comprobador se conecta por CDP. El runner debe
@@ -109,7 +141,7 @@ jobs:
         if: env.ENABLED == 'true'
         shell: powershell
         env:
-          CDP_PORTS: ${{ vars.CDP_PORTS || '9222,9223' }}
+          CDP_PORTS: ${{ steps.esc.outputs.puertos }}
         run: |
           $fallan = @()
           foreach ($p in $env:CDP_PORTS.Split(',')) {
@@ -127,21 +159,14 @@ jobs:
         shell: powershell
         # Los secretos solo existen en este paso y en el escáner. Se exponen con el nombre de .env.example.
         env:
+          FILTRO_K: ${{ steps.esc.outputs.filtro }}
           BETSSON_USERNAME: ${{ secrets[format('BETSSON_{0}_USERNAME', matrix.secret_prefix)] }}
           BETSSON_PASSWORD: ${{ secrets[format('BETSSON_{0}_PASSWORD', matrix.secret_prefix)] }}
           BETSSON_EMPTY_USERNAME: ${{ secrets[format('BETSSON_{0}_EMPTY_USERNAME', matrix.secret_prefix)] }}
           BETSSON_EMPTY_PASSWORD: ${{ secrets[format('BETSSON_{0}_EMPTY_PASSWORD', matrix.secret_prefix)] }}
         run: |
-          # s1 → quita test_real_s2; s2 → quita test_real_s1; s1,s2 → sin -k. Los tests sin red se ejecutan siempre.
-          $pedidos = @("$env:SCENARIOS".ToLower().Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique)
-          $raros = @($pedidos | Where-Object { $_ -notin 's1','s2' })
-          if ($pedidos.Count -eq 0 -or $raros.Count -gt 0) {
-            Write-Output "::error::Input scenarios no válido: usa s1, s2 o s1,s2."
-            exit 1
-          }
           $filtro = @()
-          if ($pedidos.Count -eq 1) { $filtro = @('-k', "not real_$(@('s1','s2') | Where-Object { $_ -ne $pedidos[0] })") }
-          Write-Output "Escenarios: $($pedidos -join ',') $($filtro -join ' ')"
+          if ($env:FILTRO_K) { $filtro = @('-k', $env:FILTRO_K) }
           $m = $env:MARKET.ToUpper()
           foreach ($k in 'USERNAME','PASSWORD','EMPTY_USERNAME','EMPTY_PASSWORD') {
             [Environment]::SetEnvironmentVariable("BETSSON_${m}_$k", [Environment]::GetEnvironmentVariable("BETSSON_$k"))
