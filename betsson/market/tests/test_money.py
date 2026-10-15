@@ -9,6 +9,8 @@ from pydantic import ValidationError
 
 from betsson.market import Market, MoneyParseError, list_markets, load_market, parse_money
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture(scope="module")
 def es() -> Market:

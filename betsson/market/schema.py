@@ -80,6 +80,9 @@ class Market(_Strict):
     currency: CurrencyConfig
     number_format: NumberFormat
     min_bet: Decimal = Field(gt=0)
+    money_tolerance: Decimal = Field(
+        default=Decimal("0.01"), ge=0, description="Diferencia máxima admitida al cuadrar saldos (redondeos)."
+    )
     expected_texts: ExpectedTexts
     credentials_env: CredentialsEnv
     site: SiteConfig = Field(default_factory=SiteConfig)
