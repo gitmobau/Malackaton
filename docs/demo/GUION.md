@@ -8,12 +8,12 @@ Una persona habla y otra maneja el portátil (el del runner, `portatil-alejandro
 | # | Bloque | Tiempo | Acumulado | Quién | Qué se enseña |
 |---|---|---|---|---|---|
 | 1 | El problema | 0:30 | 0:30 | Habla | El juego es un canvas de terceros sin DOM: hay que comprobarlo como un jugador. Dos escenarios: tirada completada (S1) y saldo insuficiente (S2) |
-| 2 | Ejecución real | 2:00 | 2:30 | Maneja | `gh workflow run` en directo; el runner abre Chrome, hace login (campos tapados), abre el juego de Pragmatic y gira con la apuesta mínima |
+| 2 | Ejecución real | 2:00 | 2:30 | Maneja | **15 s de contexto**: "el login es asistido por decisión del mentor (antibot de Betsson): una persona inicia sesión y el comprobador se conecta a ese Chrome; el valor está en el análisis del canvas". Después, `gh workflow run` en directo: el runner se conecta al Chrome con sesión, abre el juego de Pragmatic y gira con la apuesta mínima |
 | 3 | Informe PASS/FAIL | 1:30 | 4:00 | Maneja | Informe web: PASS/FAIL por comprobación, con motivo y capturas; la regla `después = antes − apuesta + ganancia`; S2 con el mensaje en el idioma del mercado |
-| 4 | Cómo "ve como un jugador" | 1:15 | 5:15 | Habla | OCR sobre el canvas localizando los importes por su etiqueta (SALDO/APUESTA/GANANCIA), plantillas multiescala para el botón, la red y el monedero de Betsson solo **confirman**. Lo dudoso es FAIL "inconclusive", nunca PASS |
-| 5 | Extensibilidad: proveedores y mercados | 0:45 | 6:00 | Habla | Un proveedor = una carpeta en `betsson/profiles/<proveedor>/` + test de contrato; `generic-vision` de respaldo. Un mercado = un `config/markets/<mercado>.json` (Perú/PEN, Malta/EN) validado con pydantic. `PROVIDER_UI_CHANGED` si el proveedor cambia la interfaz |
-| 6 | CI y arquitectura | 0:45 | 6:45 | Habla | GitHub Actions: tests sin red en cada PR, ejecución real en un runner propio en España (geobloqueo), matriz por mercado, escáner de secretos antes de publicar evidencias |
-| 7 | Siguientes pasos | 0:30 | 7:15 → recortar a 7:00 | Habla | Segundo proveedor real, mercados `com` y `pe` con cuenta, deriva visual con hash perceptual, Pages público |
+| 4 | Cómo "ve como un jugador" | 1:00 | 5:00 | Habla | OCR sobre el canvas localizando los importes por su etiqueta (SALDO/APUESTA/GANANCIA), plantillas multiescala para el botón, la red y el monedero de Betsson solo **confirman**. Lo dudoso es FAIL "inconclusive", nunca PASS |
+| 5 | Extensibilidad: proveedores y mercados | 0:45 | 5:45 | Habla | Un proveedor = una carpeta en `betsson/profiles/<proveedor>/` + test de contrato; `generic-vision` de respaldo. Un mercado = un `config/markets/<mercado>.json` (Perú/PEN, Malta/EN) validado con pydantic. `PROVIDER_UI_CHANGED` si el proveedor cambia la interfaz |
+| 6 | CI y arquitectura | 0:45 | 6:30 | Habla | GitHub Actions: tests sin red en cada PR, ejecución real en un runner propio en España (geobloqueo), matriz por mercado, escáner de secretos antes de publicar evidencias |
+| 7 | Siguientes pasos | 0:30 | 7:00 | Habla | Segundo proveedor real, mercados `com` y `pe` con cuenta, deriva visual con hash perceptual, Pages público |
 
 Plan B si la ejecución en directo falla o tarda más de 2 min: pasar al **vídeo de respaldo** (bloque 2) y al informe de la última ejecución buena (bloque 3). No se depura en directo.
 
