@@ -22,6 +22,7 @@ from betsson.game.sources import FrameSource
 from betsson.profiles.base import Control, IntroStep, ProfileSpec
 from betsson.vision.anchors import AnchoredValue, bare_values, find_amount, find_label
 from betsson.vision.diff import change_ratio
+from betsson.vision.idle import IdleCalibration, calibrate
 from betsson.vision.geometry import center, contains, to_pixels
 from betsson.vision.ocr import TextBox, full_text, normalize, read_text
 from betsson.vision.template import find_template
@@ -31,6 +32,7 @@ _UPSCALES: tuple[float, ...] = (1.0, 2.0)
 _MAX_INTRO_STEPS = 6
 _LOADING_TIMEOUT_S = 60.0
 _REREAD_UPSCALE = 3.0
+_IDLE_FRAMES = 6  # fotogramas de reposo para calibrar la animación (unos 2 s con capturas reales)
 _MESSAGE_CHECK_FRAMES = 2  # frames tras pulsar girar en los que se busca un mensaje (real: ya se lee en el 1.º)
 _TRUSTED_SCORE = 0.95  # por debajo de esta confianza del OCR, el importe se relee recortado
 _MAX_BET_STEPS = 30  # pulsaciones máximas de +/- para llegar a la apuesta mínima o máxima
@@ -58,6 +60,7 @@ class GameEyes:
         self.evidence_dir = evidence_dir
         self.notes: list[str] = []  # qué tuvo que recalibrar o suponer: va al informe
         self._spin_started = False
+        self.idle_calibration: IdleCalibration | None = None  # medida del reposo de esta ejecución
         self._shots = 0  # numera las evidencias para que "antes" y "después" no se pisen
 
     # ---------- evidencias ----------
@@ -365,16 +368,35 @@ class GameEyes:
             self.notes.append("botón de girar no encontrado por plantilla: se usa la pista de zona")
         return center(self.profile.spin_hint)
 
+    def calibrate_idle(self, frames: int = _IDLE_FRAMES) -> tuple[IdleCalibration, np.ndarray]:
+        """Mide la animación de reposo y fija los umbrales de inicio y fin de tirada de esta ejecución.
+
+        Devuelve la calibración y el último fotograma de reposo (referencia para spin). Queda en
+        self.idle_calibration, en notes (informe) y, con evidence_dir, en idle_calibration.json.
+        """
+        captured = [self._source.grab() for _ in range(frames)]
+        calibration = calibrate(captured, self.profile.spin_end.diff_threshold)
+        self.idle_calibration = calibration
+        self.notes.append(calibration.summary())
+        if self.evidence_dir is not None:
+            self.evidence_dir.mkdir(parents=True, exist_ok=True)
+            (self.evidence_dir / "idle_calibration.json").write_text(calibration.to_json(), encoding="utf-8")
+        return calibration, captured[-1]
+
     def spin(self) -> bool:
-        """Pulsa girar y devuelve True solo si se VE que la tirada empieza (cambio de imagen)."""
-        before = self._source.grab()
+        """Pulsa girar y devuelve True solo si se VE que la tirada empieza (cambio de imagen).
+
+        Antes calibra el reposo: el cambio tiene que superar con margen la animación propia del juego.
+        """
+        calibration, before = self.calibrate_idle()
         self._evidence("spin_before", before)
         self._source.click(*self.locate_spin(before))
-        started = self._wait_for_change(before, self.profile.spin_end.start_timeout_s)
+        timeout, threshold = self.profile.spin_end.start_timeout_s, calibration.start_threshold
+        started = self._wait_for_change(before, timeout, threshold)
         if started is None and self.profile.spin_key:  # segundo intento, como haría un jugador
             self._source.press(self.profile.spin_key)
             self.notes.append(f"el clic no arrancó la tirada: se probó la tecla '{self.profile.spin_key}'")
-            started = self._wait_for_change(before, self.profile.spin_end.start_timeout_s)
+            started = self._wait_for_change(before, timeout, threshold)
         if started is not None and self._message_appeared(before, started):
             # El cambio era una ventana del juego (p. ej. "Fondos insuficientes"), no los rodillos.
             self._evidence("spin_rejected", started)
@@ -415,7 +437,7 @@ class GameEyes:
         stable = 0
         while time.monotonic() - start < signal.timeout_s:
             current = self._source.grab()
-            stable = stable + 1 if change_ratio(previous, current) <= signal.diff_threshold else 0
+            stable = stable + 1 if change_ratio(previous, current) <= self._stable_threshold() else 0
             previous = current
             if stable >= signal.stable_frames and self._amounts_settled(start, signal.timeout_s):
                 return SpinEnd(
@@ -504,9 +526,17 @@ class GameEyes:
 
     # ---------- utilidades ----------
 
-    def _wait_for_change(self, reference: np.ndarray, timeout_s: float) -> np.ndarray | None:
+    def _stable_threshold(self) -> float:
+        """Cambio por debajo del cual la imagen cuenta como quieta: el calibrado si lo hay, si no el del perfil."""
+        if self.idle_calibration is not None:
+            return self.idle_calibration.stable_threshold
+        return self.profile.spin_end.diff_threshold
+
+    def _wait_for_change(
+        self, reference: np.ndarray, timeout_s: float, threshold: float | None = None
+    ) -> np.ndarray | None:
         """Primer frame que difiere de `reference`, o None si no cambia nada antes del timeout."""
-        threshold = self.profile.spin_end.diff_threshold
+        threshold = self.profile.spin_end.diff_threshold if threshold is None else threshold
         start = time.monotonic()
         while time.monotonic() - start < timeout_s:
             frame = self._source.grab()
