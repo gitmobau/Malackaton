@@ -40,6 +40,10 @@ LOGIN_PASSWORD = "[data-test-id='password-input']"
 LOGIN_SUBMIT = "[data-test-id='account-login-btn-1-button']"
 LOGIN_DIALOG_CLOSE = "[data-test-id='dialog-close-button']"
 
+LOGOUT = re.compile(r"^\s*(cerrar sesión|salir|log ?out|sign out)\s*$", re.I)
+USER_MENU = "[data-test-id='user-icon']"
+WAF_COOKIE = "aws-waf-token"  # la deja el desafío del WAF al terminar solo
+
 # --- Saldo (cabecera, con sesión iniciada) -------------------------------------
 BALANCE_CANDIDATES = (
     "[data-test-id*='balance' i]",

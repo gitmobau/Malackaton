@@ -4,9 +4,23 @@ No es una espera a la interfaz (esas van con señales): es un límite de ritmo h
 """
 from __future__ import annotations
 
+import random
 import time
 
 MIN_SECONDS_BETWEEN_LOADS = 2.0
+
+
+def human_pause(min_s: float = 0.5, max_s: float = 1.5) -> None:
+    """Pausa de jugador entre gestos (pasar de un campo a otro, mirar antes de enviar).
+
+    Como el Pacer, es ritmo humano deliberado, no una espera a la interfaz.
+    """
+    time.sleep(random.uniform(min_s, max_s))
+
+
+def typing_delay_ms() -> int:
+    """Retardo entre teclas de una persona escribiendo (80 a 180 ms)."""
+    return random.randint(80, 180)
 
 
 class Pacer:

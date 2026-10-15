@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import logging
+import random
 import re
 import time
 from dataclasses import dataclass, field
@@ -26,7 +27,7 @@ from betsson.market.money import MoneyParseError, detect_currency, parse_money
 from betsson.market.schema import Market
 from betsson.site import selectors as sel
 from betsson.site.credentials import Credentials, credentials_for
-from betsson.site.pacing import Pacer
+from betsson.site.pacing import Pacer, human_pause, typing_delay_ms
 from betsson.site.tracing import NoTrace, TraceControl, trace_paused
 
 log = logging.getLogger(__name__)
@@ -150,6 +151,26 @@ class BetssonSite:
     def goto_lobby(self) -> None:
         self._goto(self.market.site.casino_path)
         self.page.locator(sel.GAME_THUMBNAIL).first.wait_for(state="visible", timeout=GAME_LAUNCH_TIMEOUT_MS)
+        self._wait_site_settled()
+
+    def _wait_site_settled(self, timeout_ms: int = 30_000) -> None:
+        """Espera a que el desafío del WAF termine SOLO (aparece su cookie) y a que la red se calme.
+
+        No se toca ni se resuelve nada: solo se espera, como haría el navegador de un jugador.
+        """
+        deadline = time.monotonic() + timeout_ms / 1000
+        while not any(c["name"] == sel.WAF_COOKIE for c in self.page.context.cookies(self.market.origin)):
+            if time.monotonic() >= deadline:
+                log.warning("no apareció la cookie %s del WAF en %d s", sel.WAF_COOKIE, timeout_ms // 1000)
+                break
+            try:
+                self.page.wait_for_event("requestfinished", timeout=_POLL_MS)
+            except PlaywrightTimeoutError:
+                pass
+        try:
+            self.page.wait_for_load_state("networkidle", timeout=15_000)
+        except PlaywrightTimeoutError:
+            log.info("la red no llegó a calmarse del todo (anuncios y analítica); se sigue")
 
     # ------------------------------------------------------------------ cookies
 
@@ -183,7 +204,7 @@ class BetssonSite:
             self.goto_lobby()
         if self.page.locator(sel.LOGIN_PASSWORD).filter(visible=True).count() == 0:
             self._pacer.wait_turn()
-            self.page.get_by_text(sel.LOGIN_OPEN).filter(visible=True).first.click()
+            self._human_click(self.page.get_by_text(sel.LOGIN_OPEN).filter(visible=True).first)
         username = self.page.locator(sel.LOGIN_USERNAME)
         password = self.page.locator(sel.LOGIN_PASSWORD)
         username.wait_for(state="visible")
@@ -193,9 +214,14 @@ class BetssonSite:
         # La traza solo se reanuda con el formulario fuera del DOM o con los campos vacíos, falle lo que falle.
         with trace_paused(self._trace):
             try:
-                username.fill(creds.username)
-                password.fill(creds.password)
-                self.page.locator(sel.LOGIN_SUBMIT).click()
+                # Como una persona: clic en el campo, tecla a tecla, pausa, siguiente campo, pausa y clic en enviar.
+                self._human_click(username)
+                username.press_sequentially(creds.username, delay=typing_delay_ms())
+                human_pause()
+                self._human_click(password)
+                password.press_sequentially(creds.password, delay=typing_delay_ms())
+                human_pause()
+                self._human_click(self.page.locator(sel.LOGIN_SUBMIT))
                 password.wait_for(state="detached", timeout=DEFAULT_TIMEOUT_MS)
             except PlaywrightError:
                 error = self._visible_error().replace(creds.username, "<usuario>")
@@ -207,6 +233,46 @@ class BetssonSite:
             self.screenshot("login_rejected")
             return False
         log.info("sesión iniciada en %s (cuenta %s)", self.market.id, self.account)
+        return True
+
+    def _human_click(self, target: Locator) -> None:
+        """Mueve el ratón hasta un punto del elemento (no siempre el centro), se posa y hace clic."""
+        target.scroll_into_view_if_needed()
+        box = target.bounding_box()
+        if box is None:
+            target.click()
+            return
+        x = box["x"] + box["width"] * random.uniform(0.3, 0.7)
+        y = box["y"] + box["height"] * random.uniform(0.35, 0.65)
+        self.page.mouse.move(x, y, steps=random.randint(12, 28))
+        target.hover()
+        self.page.mouse.click(x, y, delay=random.randint(40, 120))
+
+    def logout(self) -> bool:
+        """Cierra la sesión (y con ella la sesión de juego del regulador). True si ya no hay sesión."""
+        logout = self.page.get_by_text(sel.LOGOUT).filter(visible=True)
+        openers = [self._balance_toggle(), self.page.locator(sel.USER_MENU).filter(visible=True).first]
+        for opener in openers:
+            if logout.count():
+                break
+            if opener is None or not opener.count():
+                continue
+            self._human_click(opener)
+            try:
+                logout.first.wait_for(state="visible", timeout=5_000)
+            except PlaywrightTimeoutError:
+                continue
+        if not logout.count():
+            log.warning("no se encontró 'Cerrar sesión': la sesión sigue abierta")
+            self.screenshot("logout_not_found")
+            return False
+        self._human_click(logout.first)
+        try:
+            self.page.get_by_text(sel.LOGIN_OPEN).filter(visible=True).first.wait_for(timeout=DEFAULT_TIMEOUT_MS)
+        except PlaywrightTimeoutError:
+            self.screenshot("logout_unconfirmed")
+            return False
+        log.info("sesión cerrada en %s", self.market.id)
         return True
 
     @staticmethod

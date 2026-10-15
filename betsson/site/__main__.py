@@ -21,6 +21,8 @@ from betsson.core import GameOpenError
 from betsson.site import BetssonSite, ChunkedTrace, MissingCredentialsError, SiteError
 
 VIEWPORT = {"width": 1366, "height": 768}
+# Perfil propio del comprobador (un "dispositivo habitual"), FUERA del repo: nunca va a git.
+PROFILES_ROOT = Path(__file__).resolve().parents[3]
 
 
 def main() -> int:
@@ -33,6 +35,8 @@ def main() -> int:
                         help="funded: cuenta con saldo (S1); empty: cuenta sin saldo (S2)")
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--no-game", action="store_true", help="solo login y saldo, sin abrir el juego")
+    parser.add_argument("--profile-dir", type=Path, default=None,
+                        help="perfil persistente de Chrome (por defecto ../.chrome-profile-<mercado>)")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -41,15 +45,22 @@ def main() -> int:
     out.mkdir(parents=True, exist_ok=True)
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(channel="chrome", headless=args.headless)
-        context = browser.new_context(
-            viewport=VIEWPORT, device_scale_factor=1, locale=market.locale, timezone_id=market.timezone
+        profile = args.profile_dir or PROFILES_ROOT / f".chrome-profile-{market.id}"
+        context = p.chromium.launch_persistent_context(
+            user_data_dir=profile,
+            channel="chrome",
+            headless=args.headless,
+            viewport=VIEWPORT,
+            device_scale_factor=1,
+            locale=market.locale,
+            timezone_id=market.timezone,
         )
         context.tracing.start(screenshots=True, snapshots=True)
         trace = ChunkedTrace(context, out)
-        page = context.new_page()
+        page = context.pages[0] if context.pages else context.new_page()
         site = BetssonSite(page, market, account=args.account, evidence_dir=out, trace=trace)
         status = 0
+        logged_in = False
         try:
             site.goto_lobby()
             page.screenshot(path=out / "01_lobby.png")
@@ -57,6 +68,7 @@ def main() -> int:
                 if not site.login():
                     logging.error("login rechazado: %s", site.last_login_error)
                     return 1
+                logged_in = True
                 site.screenshot("02_after_login")
                 balance = site.read_balance()
                 logging.info("saldo Betsson: %s | moneda vista: %s | %s", balance.money, balance.currency_seen,
@@ -76,8 +88,10 @@ def main() -> int:
             site.screenshot("error")
             status = 1
         finally:
+            if logged_in:  # no dejar abierta la sesión de juego del regulador
+                logging.info("cierre de sesión: %s", "ok" if site.logout() else "NO CONFIRMADO, revisar a mano")
             context.tracing.stop(path=out / "trace-final.zip")
-            browser.close()
+            context.close()
         logging.info("evidencias en %s", out)
         return status
 
