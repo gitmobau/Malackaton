@@ -1,0 +1,62 @@
+{% extends "_base.html.j2" %}
+{% block title %}{{ run.scenario.value }} · {{ run.market }} · {{ run.outcome }}{% endblock %}
+{% block body %}
+<h1>{{ run.scenario.value }} en el mercado {{ run.market }}</h1>
+<div class="meta">
+  Run {{ run.run_id }} · juego {{ run.game or "—" }} · perfil {{ run.provider or "sin detectar" }}
+  · {{ run.started_at.strftime("%Y-%m-%d %H:%M:%S") }} UTC
+  {% if run.finished_at %}({{ "%.1f"|format((run.finished_at - run.started_at).total_seconds()) }} s){% endif %}
+</div>
+
+<div class="summary">
+  <span class="badge {{ run.outcome }}">{{ run.outcome }}</span>
+  {% set passed = run.results|selectattr("status", "equalto", "PASS")|list|length %}
+  <span>{{ passed }} de {{ run.results|length }} comprobaciones en PASS</span>
+  {% if run.missing_checks %}<span class="meta">· sin resultado: {{ run.missing_checks|map(attribute="value")|join(", ") }}</span>{% endif %}
+</div>
+
+{% if run.error %}
+<div class="notice error"><strong>La ejecución se cortó:</strong> {{ run.error }}</div>
+{% endif %}
+{% for w in run.warnings %}
+<div class="notice"><strong>Aviso:</strong> {{ w }}{% if "PROVIDER_UI_CHANGED" in w %} — el juego del proveedor ha cambiado; hay que revisar su perfil. No es un fallo de integración de Betsson.{% endif %}</div>
+{% endfor %}
+
+<h2>Comprobaciones</h2>
+<div class="wrap">
+<table>
+  <thead><tr><th>Comprobación</th><th>Resultado</th><th>Motivo</th><th>Esperado</th><th>Observado</th></tr></thead>
+  <tbody>
+  {% for r in run.results %}
+    <tr>
+      <td><code>{{ r.id.value }}</code></td>
+      <td>
+        <span class="badge {{ r.status }}">{{ r.status }}</span>
+        {% if r.failure_kind %}<br><span class="badge {{ r.failure_kind.value }}">{{ r.failure_kind.value }}</span>{% endif %}
+      </td>
+      <td>
+        {{ r.reason }}
+        {% if r.evidence %}
+        <div class="ev">
+          {% for p in r.evidence %}
+            {% if p is image %}<a href="{{ p|posix|urlencode }}"><img src="{{ p|posix|urlencode }}" alt="{{ p.name }}"></a>
+            {% else %}<a href="{{ p|posix|urlencode }}">{{ p.name }}</a>{% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+      </td>
+      <td>{{ r.expected or "—" }}</td>
+      <td>{{ r.observed or "—" }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% if run.evidence %}
+<h2>Evidencias generales</h2>
+<ul>{% for p in run.evidence %}<li><a href="{{ p|posix|urlencode }}">{{ p|posix }}</a></li>{% endfor %}</ul>
+{% endif %}
+
+<p class="meta">Datos en bruto: <a href="results.json">results.json</a>. Lo dudoso cuenta como FAIL no concluyente; nunca como PASS.</p>
+{% endblock %}

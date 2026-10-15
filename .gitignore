@@ -8,6 +8,9 @@ __pycache__/
 .env
 .env.*
 !.env.example
+.secrets/
+# Perfiles de Chrome del login asistido (cookies de sesión de Betsson)
+.chrome-profiles/
 *.key
 *.pem
 
