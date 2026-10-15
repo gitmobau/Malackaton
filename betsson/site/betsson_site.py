@@ -38,7 +38,9 @@ DEFAULT_TIMEOUT_MS = 30_000
 GAME_LAUNCH_TIMEOUT_MS = 60_000
 SCREENSHOT_TIMEOUT_MS = 15_000
 _POLL_MS = 1_000  # tope de cada espera a un evento o elemento, no una pausa fija
-BALANCE_STABLE_WINDOW_MS = 3_000  # el saldo es estable si su texto no cambia en esta ventana
+# El saldo es estable si su texto no cambia en esta ventana. 1,5 s basta: en las ejecuciones reales del 15-oct
+# Betsson se lee 10-14 s después del fin de la tirada, y cualquier cambio dentro de la ventana la reinicia.
+BALANCE_STABLE_WINDOW_MS = 1_500
 BALANCE_SETTLE_TIMEOUT_MS = 30_000  # si sigue cambiando pasado esto: "saldo no estable" (no concluyente)
 
 # Cabeceras que la web manda a su API (marketcode, brandid, x-obg-*). Se copian de sus propias peticiones.
