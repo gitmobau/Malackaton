@@ -31,6 +31,7 @@ _UPSCALES: tuple[float, ...] = (1.0, 2.0)
 _MAX_INTRO_STEPS = 6
 _LOADING_TIMEOUT_S = 60.0
 _REREAD_UPSCALE = 3.0
+_MESSAGE_CHECK_FRAMES = 3  # frames tras pulsar girar en los que se busca un mensaje (entra con fundido)
 _TRUSTED_SCORE = 0.95  # por debajo de esta confianza del OCR, el importe se relee recortado
 _MAX_BET_STEPS = 30  # pulsaciones máximas de +/- para llegar a la apuesta mínima o máxima
 _DEFAULT_EVIDENCE_DIR = Path("outputs") / "evidence" / "game"
@@ -341,10 +342,34 @@ class GameEyes:
             self._source.press(self.profile.spin_key)
             self.notes.append(f"el clic no arrancó la tirada: se probó la tecla '{self.profile.spin_key}'")
             started = self._wait_for_change(before, self.profile.spin_end.start_timeout_s)
-        if started is not None:
+        if started is not None and self._message_appeared(before, started):
+            # El cambio era una ventana del juego (p. ej. "Fondos insuficientes"), no los rodillos.
+            self._evidence("spin_rejected", started)
+            self.notes.append("tirada rechazada: al pulsar apareció un mensaje del juego")
+            started = None
+        elif started is not None:
             self._evidence("spin_started", started)
         self._spin_started = started is not None
         return self._spin_started
+
+    def _message_appeared(self, before: np.ndarray, started: np.ndarray) -> bool:
+        """True si tras pulsar aparece un mensaje del juego en vez de girar los rodillos.
+
+        Se mira el frame del cambio y unos pocos más (la ventana entra con fundido): mensaje = textos de
+        saldo insuficiente del perfil, o un botón de cerrar mensaje (ACEPTAR…) que antes no estaba.
+        """
+        warning = [normalize(t) for texts in self.profile.insufficient_texts.values() for t in texts]
+        had_button = any(_find_word(read_text(before), t) for t in self.profile.message_dismiss_texts)
+        frame = started
+        for _ in range(_MESSAGE_CHECK_FRAMES):
+            boxes = read_text(frame)
+            text = normalize(full_text(boxes))
+            if any(w in text for w in warning):
+                return True
+            if not had_button and any(_find_word(boxes, t) for t in self.profile.message_dismiss_texts):
+                return True
+            frame = self._source.grab()
+        return False
 
     def wait_spin_end(self) -> SpinEnd:
         """Fin de tirada = `stable_frames` comparaciones seguidas sin cambio apreciable."""
