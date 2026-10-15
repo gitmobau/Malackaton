@@ -131,7 +131,10 @@ jobs:
           foreach ($k in 'USERNAME','PASSWORD','EMPTY_USERNAME','EMPTY_PASSWORD') {
             [Environment]::SetEnvironmentVariable("BETSSON_${m}_$k", [Environment]::GetEnvironmentVariable("BETSSON_$k"))
           }
-          & $env:VENV_PY -m pytest -m "(unit and not slow) or real or browser" --market $env:MARKET --headed --browser-channel chrome
+          # Sin traza, vídeo ni capturas automáticas de pytest-playwright: con la sesión iniciada la traza
+          # guarda el perfil del cliente (GET /api/v2/es/currentcustomer: dirección, documento, KYC).
+          # Anulan las opciones de pytest.ini (la línea de comandos manda).
+          & $env:VENV_PY -m pytest -m "(unit and not slow) or real or browser" --market $env:MARKET --headed --browser-channel chrome --tracing off --video off --screenshot off
           exit $LASTEXITCODE
 
       - name: Buscar secretos en las evidencias
@@ -149,8 +152,7 @@ jobs:
 
       - name: Publicar evidencias e informe
         # Solo si el escáner terminó en verde. Trazas (.zip) y vídeos (.webm) nunca se publican:
-        # aunque el login esté fuera de la traza (SegmentedTrace de A), la red con sesión lleva
-        # las cookies de Betsson, que el escáner no reconoce. Se quedan en el runner para depurar.
+        # con la sesión iniciada guardan cookies y datos personales del cliente, que el escáner no reconoce.
         if: always() && env.ENABLED == 'true' && steps.scan.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
@@ -161,6 +163,14 @@ jobs:
             !outputs/**/*.webm
           if-no-files-found: warn
           retention-days: 7
+
+      - name: Borrar trazas y vídeos del runner
+        # Tampoco se guardan en el portátil: pueden llevar cookies y datos personales del cliente.
+        if: always() && env.ENABLED == 'true'
+        shell: powershell
+        run: |
+          Get-ChildItem outputs -Recurse -Include *.zip,*.webm,*.har -ErrorAction SilentlyContinue | Remove-Item -Force
+          exit 0
 
   pages:
     name: Informe web (artifact y GitHub Pages)
