@@ -201,7 +201,7 @@ Principios:
 | Mercados | `config/markets/{es,com,pe}.json` validados con pydantic. `es` se ejecuta en real; `com` y `pe` configurados y probados con capturas y textos. `parse_money` genérico. Matriz de CI por mercado con `enabled` |
 | Secretos | `.env` en local y GitHub Secrets en CI. **La traza de Playwright graba lo que se escribe**: se pausa durante el login, los campos se tapan en capturas y vídeo, y se hace un `grep` de los artifacts antes de publicar |
 | Resultado | `results.json` con PASS/FAIL por comprobación, escenario y mercado, más el informe HTML |
-| Apuesta | La mínima |
+| Apuesta | ~~La mínima~~ → **la que muestre el juego** (`BET_STRATEGY=current`, decisión del equipo a las 18:30 para recortar tiempo; el saldo lo recargan los mentores). La mínima solo como reserva si la apuesta supera el saldo |
 | VPN | **No se usa** (cuentas españolas). Se instala solo si algún mercado lo exige más tarde |
 | Runner de CI | **Propio en España**: el portátil de Alejandro como runner de GitHub Actions; Oracle (región Madrid) si se activa a tiempo |
 | Modo de trabajo | **Un solo portátil (el de Alejandro; antes el de Maiki)**: 4 sesiones de Claude, una por área, cada una en su worktree de git, con Remote Control para que cada miembro se conecte. Si hay atasco, un área pasa a un segundo portátil |
@@ -258,7 +258,8 @@ Con cada "Nueva info": cambiar las incógnitas, cerrar las decisiones que se pue
 - 15-oct, v0.1: plan de preparación genérico (24 h, sin bases).
 - 15-oct, v0.2: VPN obligatoria (lo dice la organización).
 - 15-oct, v1.0: llega el PDF del reto. Login, Real Play, Pragmatic, 2 escenarios × 2 mercados, GitHub Actions y criterios de evaluación. Desarrollo hasta las 20:00. Oracle disponible.
-- 15-oct, **v1.7**: decisión cerrada: proveedor desconocido → `generic-vision`; deriva de un proveedor conocido → `ProviderUIChanged` desde el registro de perfiles.
+- 15-oct, **v1.8**: S1 y S2 en PASS en real (demo-20261015-1746 y demo-20261015-1811). Login asistido; apuesta actual por defecto; repo público; fallo provocado para el informe (mentor).
+- 15-oct, v1.7: decisión cerrada: proveedor desconocido → `generic-vision`; deriva de un proveedor conocido → `ProviderUIChanged` desde el registro de perfiles.
 - 15-oct, v1.6: migración al portátil de Alejandro (más RAM y CPU) con la misma ruta `D:\MAIKI\Malackathon`; un `handoff/<X>.md` por área y scripts en `coordinacion/`. Runner de CI en el portátil de Alejandro; rapidocr v3.
 - 15-oct, v1.5: todo en un solo portátil (Maiki) con un worktree de git por área y Remote Control; `.venv` compartido; runner de CI también en ese portátil.
 - 15-oct, v1.4: áreas asignadas (A Maiki, B Alejandro, C Migue, D Guilli). **Stack cambiado a Python** (el repo ya estaba preparado; mejor OCR y visión). Ramas por área + PR. `CLAUDE.md` fusionado con el original del repo.
