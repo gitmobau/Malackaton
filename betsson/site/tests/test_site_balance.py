@@ -16,6 +16,14 @@ from betsson.site import BetssonSite
 
 BANNER = "<h2>¡5.000€ en juego con Money Train 5!</h2><p>1086,40 € Jugador acaba de ganar</p>"
 BUTTON = "<header><button data-test-id='balance-button'><span>100,00 €</span></button></header>"
+# Página del juego: "Saldo ▾" abre un resumen; el total es user-summary-balance (no bonus/bloqueado/retirable).
+IN_GAME = """<header><button data-test-id='in-game-balance-button'
+  onclick="document.getElementById('sum').hidden = !document.getElementById('sum').hidden">Saldo</button></header>
+<section id='sum' hidden>
+  <span data-test-id='user-summary-balance'>12,50 €</span>
+  <span data-test-id='user-summary-bonus'>5,00 €</span>
+  <span data-test-id='user-summary-withdrawable'>7,50 €</span>
+</section>"""
 
 
 @pytest.fixture()
@@ -51,3 +59,12 @@ def test_banner_only_is_inconclusive(site_with) -> None:
 def test_two_balance_buttons_is_inconclusive(site_with) -> None:
     reading = site_with(BANNER + BUTTON + BUTTON).read_balance(timeout_ms=2_000)
     assert reading.money is None
+
+
+def test_in_game_header_opens_summary_and_reads_total(site_with) -> None:
+    site = site_with(BANNER + IN_GAME)
+    reading = site.read_balance(timeout_ms=8_000)
+    assert reading.money is not None
+    assert reading.money.amount == Decimal("12.50")
+    assert site.page.locator("#sum").is_hidden()  # el desplegable se cierra para no tapar el juego
+    assert site.is_logged_in()

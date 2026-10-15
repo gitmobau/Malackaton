@@ -240,7 +240,8 @@ class BetssonSite:
     def is_logged_in(self) -> bool:
         """Hay sesión si ya no se ofrece "Iniciar sesión" en la cabecera y se ve el acceso al saldo."""
         login_offered = self.page.get_by_text(sel.LOGIN_OPEN).filter(visible=True).count() > 0
-        has_balance_button = self.page.locator(sel.BALANCE_BUTTON).filter(visible=True).count() == 1
+        account = self.page.locator(sel.BALANCE_BUTTON).or_(self.page.locator(sel.IN_GAME_BALANCE_BUTTON))
+        has_balance_button = account.filter(visible=True).count() == 1
         return not login_offered and has_balance_button
 
     def login(self, credentials: Credentials | None = None) -> bool:
@@ -297,7 +298,8 @@ class BetssonSite:
         deadline = time.monotonic() + SESSION_CHECK_TIMEOUT_MS / 1000
         while time.monotonic() < deadline:
             try:
-                if self.page.locator(sel.BALANCE_BUTTON).filter(visible=True).count() == 1:
+                account = self.page.locator(sel.BALANCE_BUTTON).or_(self.page.locator(sel.IN_GAME_BALANCE_BUTTON))
+                if account.filter(visible=True).count() == 1:
                     break
                 if self.page.get_by_text(sel.LOGIN_OPEN).filter(visible=True).count():
                     deadline = 0  # se ofrece "Iniciar sesión": no hay sesión
@@ -383,16 +385,13 @@ class BetssonSite:
 
     # ------------------------------------------------------------------ saldo
 
-    def _find_balance_locator(self) -> Locator | None:
-        """El botón de saldo de la cabecera, solo si es ÚNICO y muestra un importe con la moneda del mercado.
-
-        Nunca se busca "cualquier texto con €": un banner promocional se leería como saldo.
-        """
-        button = self.page.locator(sel.BALANCE_BUTTON).filter(visible=True)
-        if button.count() != 1:
+    def _unique_money(self, css: str) -> Locator | None:
+        """El elemento `css` solo si es ÚNICO, visible y muestra un importe con la moneda del mercado."""
+        element = self.page.locator(css).filter(visible=True)
+        if element.count() != 1:
             return None
         try:
-            text = button.inner_text().strip()
+            text = element.inner_text().strip()
         except PlaywrightError:
             return None
         if detect_currency(text, self.market) != self.market.currency_code:
@@ -401,19 +400,41 @@ class BetssonSite:
             parse_money(text, self.market, require_currency=True)
         except MoneyParseError:
             return None
-        return button
+        return element
+
+    def _find_balance_locator(self) -> Locator | None:
+        """Saldo de la cuenta en la cabecera: botón de saldo (lobby) o total del resumen (página del juego).
+
+        Nunca se busca "cualquier texto con €": un banner promocional se leería como saldo.
+        """
+        return self._unique_money(sel.BALANCE_BUTTON) or self._unique_money(sel.SUMMARY_BALANCE)
 
     def read_balance(self, timeout_ms: int = DEFAULT_TIMEOUT_MS) -> Reading:
         """Saldo de Betsson leído del DOM, con captura. Nunca lanza: si no se puede leer, Reading no concluyente."""
         deadline = time.monotonic() + timeout_ms / 1000
-        while time.monotonic() < deadline:
-            try:
-                loc = self._find_balance_locator()
-                if loc is not None:
-                    return self._balance_reading(loc)
-                self.page.locator(sel.BALANCE_BUTTON).first.wait_for(state="visible", timeout=_POLL_MS)
-            except PlaywrightError:  # navegación o re-render en curso: se vuelve a mirar hasta el tope
-                continue
+        opened: Locator | None = None  # desplegable "Saldo ▾" abierto por nosotros: se cierra al terminar
+        try:
+            while time.monotonic() < deadline:
+                try:
+                    loc = self._find_balance_locator()
+                    if loc is not None:
+                        return self._balance_reading(loc)
+                    toggle = self.page.locator(sel.IN_GAME_BALANCE_BUTTON).filter(visible=True)
+                    if opened is None and toggle.count() == 1:
+                        toggle.click()
+                        opened = toggle
+                        continue
+                    self.page.locator(sel.BALANCE_BUTTON).or_(self.page.locator(sel.SUMMARY_BALANCE)).first.wait_for(
+                        state="visible", timeout=_POLL_MS
+                    )
+                except PlaywrightError:  # navegación o re-render en curso: se vuelve a mirar hasta el tope
+                    continue
+        finally:
+            if opened is not None:
+                try:
+                    opened.click()  # cerrar el resumen para no tapar el juego
+                except PlaywrightError:
+                    log.warning("no se pudo cerrar el desplegable de saldo")
         return Reading(
             reason=f"saldo de Betsson no visible o no unívoco en la cabecera ({self.market.id})",
             evidence_path=self._safe_screenshot("betsson_balance"),

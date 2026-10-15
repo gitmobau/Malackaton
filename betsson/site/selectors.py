@@ -52,6 +52,10 @@ WAF_COOKIE = "aws-waf-token"  # la deja el desafío del WAF al terminar solo
 # Botón de saldo de la cabecera de la cuenta (verificado el 15-oct con sesión: "100,00 €"). SOLO de aquí se
 # lee el saldo: un texto con "€" cualquiera puede ser un banner ("¡5.000€ en juego…!").
 BALANCE_BUTTON = "[data-test-id='balance-button']"
+# En la página del juego la cabecera es otra: "Saldo ▾" (in-game-balance-button) abre un resumen cuyo
+# total es user-summary-balance (también hay bonus, bloqueado y retirable: NO son el saldo).
+IN_GAME_BALANCE_BUTTON = "[data-test-id='in-game-balance-button']"
+SUMMARY_BALANCE = "[data-test-id='user-summary-balance']"
 
 # --- API pública de juegos (la pide la propia página) -----------------------------
 GAME_API_FRAGMENT = "/api/v2/games/"
