@@ -13,6 +13,9 @@
   <thead><tr><th>Mercado</th><th>Escenario</th><th>Resultado</th><th>PASS</th><th>Perfil</th><th>Juego</th><th>Detalle</th></tr></thead>
   <tbody>
   {% for e in entries %}
+    {% if e.error %}
+    <tr><td colspan="6"><span class="badge FAIL">ERROR</span> {{ e.link }}: {{ e.error }}</td><td></td></tr>
+    {% else %}
     {% set run = e.run %}
     <tr>
       <td>{{ run.market }}</td>
@@ -21,8 +24,9 @@
       <td>{{ run.results|selectattr("status", "equalto", "PASS")|list|length }} / {{ run.results|length }}</td>
       <td>{{ run.provider or "—" }}</td>
       <td>{{ run.game or "—" }}</td>
-      <td><a href="{{ e.link }}">informe</a></td>
+      <td><a href="{{ e.link|urlencode }}">informe</a></td>
     </tr>
+    {% endif %}
   {% endfor %}
   </tbody>
 </table>

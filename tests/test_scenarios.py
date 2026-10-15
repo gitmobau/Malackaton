@@ -227,3 +227,66 @@ def test_demo_run_writes_report_for_ci_artifact(run_id: str, market_id: str, evi
     html = index.read_text(encoding="utf-8")
     assert s1.outcome == s2.outcome == "PASS"
     assert "S1/report.html" in html and "S2/report.html" in html
+
+
+# --- Arreglos de la revisión ----------------------------------------------------
+
+
+def test_safe_error_hides_urls_and_local_paths() -> None:
+    from betsson.checks.scenario import safe_error
+
+    msg = safe_error(RuntimeError("Timeout https://x.test/play?token=abc en C:\\Users\\yo\\shot.png\nCall log: ..."))
+    assert "token" not in msg and "Users" not in msg and "Call log" not in msg
+    assert msg.startswith("RuntimeError: Timeout <url>")
+
+
+def test_s1_no_reading_mid_spin_when_end_not_seen(tmp_path: Path) -> None:
+    run = run_s1(tmp_path, eyes_kw={"spin_end": SpinEnd(completed=False, reason="timeout de 30 s")})
+    checks = by_id(run)
+    assert checks[CheckId.INGAME_BALANCE_CONSISTENT].failure_kind is FailureKind.INCONCLUSIVE
+    assert checks[CheckId.BETSSON_BALANCE_RECONCILES].failure_kind is FailureKind.INCONCLUSIVE
+
+
+def test_s1_zero_bet_is_not_a_pass(tmp_path: Path) -> None:
+    run = run_s1(tmp_path, betsson=("100.00", "100.00"), game=("100.00", "100.00"), bet="0.00")
+    assert by_id(run)[CheckId.WAGER_READ].failure_kind is FailureKind.INCONCLUSIVE
+    assert run.outcome != "PASS"
+
+
+def test_currency_seen_only_on_betsson_is_inconclusive(tmp_path: Path) -> None:
+    unseen = lambda v: reading(v, seen=False)
+    run = run_s1(tmp_path, game=[unseen("100.00"), unseen("99.80")], bet=unseen("0.20"), win=unseen("0.00"))
+    assert by_id(run)[CheckId.CURRENCY_MATCHES_MARKET].failure_kind is FailureKind.INCONCLUSIVE
+
+
+def test_s2_with_enough_balance_is_not_integration_failure(tmp_path: Path) -> None:
+    run = run_s2(tmp_path, betsson=("100.00", "99.80"), game=("100.00", "99.80"), spin_starts=True)
+    r = by_id(run)[CheckId.SPIN_REJECTED]
+    assert r.failure_kind is FailureKind.INCONCLUSIVE and "precondición" in r.reason
+
+
+def test_s2_language_comparison_ignores_case_and_region(tmp_path: Path) -> None:
+    msg = Message(text="Saldo insuficiente", lang_detected="ES-es", matches_insufficient=True)
+    assert by_id(run_s2(tmp_path, message=msg))[CheckId.INSUFFICIENT_MESSAGE_LANGUAGE].status == "PASS"
+
+
+def test_ui_changed_evidence_reaches_report(tmp_path: Path) -> None:
+    shot = tmp_path / "drift.png"
+    shot.write_bytes(b"png")
+
+    class DriftRegistry(FakeRegistry):
+        def ensure_recognized(self, profile, frame) -> None:  # type: ignore[override]
+            from betsson.core import ProviderUIChanged
+            raise ProviderUIChanged("perfil no reconoce la pantalla", evidence=[shot])
+
+    run = run_s1(tmp_path, registry=DriftRegistry())
+    assert run.evidence == (Path("drift.png"),)
+
+
+def test_broken_results_json_does_not_break_index(tmp_path: Path) -> None:
+    run_s1(tmp_path / "es" / "S1")
+    bad = tmp_path / "es" / "S2"
+    bad.mkdir(parents=True)
+    (bad / "results.json").write_text("{no es json", encoding="utf-8")
+    html = render_index(tmp_path).read_text(encoding="utf-8")
+    assert "ERROR" in html and "S1/report.html" in html

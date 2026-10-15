@@ -29,6 +29,15 @@ def real_play_check(play_mode: PlayMode | None, open_error: str | None = None) -
     return CheckResult.inconclusive(cid, "no se pudo confirmar el modo de juego", observed=str(play_mode))
 
 
+def positive_read_check(check_id: CheckId, reading: Reading | None, what: str) -> CheckResult:
+    """Como read_check, pero un importe 0 o negativo no vale (p. ej. la apuesta)."""
+    result = read_check(check_id, reading, what)
+    if result.status == "PASS" and reading is not None and reading.money is not None and reading.money.amount <= 0:
+        return CheckResult.inconclusive(check_id, f"{what} no positivo: {reading.money}", observed=str(reading.money),
+                                        evidence=result.evidence)
+    return result
+
+
 def read_check(check_id: CheckId, reading: Reading | None, what: str) -> CheckResult:
     if reading is None:
         return CheckResult.inconclusive(check_id, f"{what}: sin lectura")
@@ -40,13 +49,20 @@ def read_check(check_id: CheckId, reading: Reading | None, what: str) -> CheckRe
     )
 
 
-def currency_check(readings: Iterable[Reading | None], market: MarketContext) -> CheckResult:
-    """La moneda VISTA en pantalla es la del mercado. Lo no visto no cuenta."""
+def _seen(readings: Iterable[Reading | None]) -> list[Reading]:
+    return [r for r in readings if r is not None and r.money is not None and r.currency_seen]
+
+
+def currency_check(game: Iterable[Reading | None], betsson: Iterable[Reading | None],
+                   market: MarketContext) -> CheckResult:
+    """La moneda VISTA es la del mercado. Hace falta verla al menos en el juego; lo no visto no cuenta."""
     cid = CheckId.CURRENCY_MATCHES_MARKET
-    seen = [r for r in readings if r is not None and r.money is not None and r.currency_seen]
+    game_seen = _seen(game)
+    seen = game_seen + _seen(betsson)
     evidence = tuple(r.evidence_path for r in seen if r.evidence_path)
-    if not seen:
-        return CheckResult.inconclusive(cid, "no se vio ningún símbolo o código de moneda", expected=market.currency_code)
+    if not game_seen:
+        return CheckResult.inconclusive(cid, "no se vio el símbolo o código de moneda en el juego",
+                                        expected=market.currency_code, evidence=evidence)
     wrong = sorted({r.money.currency for r in seen if r.money and r.money.currency != market.currency_code})
     if wrong:
         texts = ", ".join(f"«{r.raw_text}»" for r in seen)

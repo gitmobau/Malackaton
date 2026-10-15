@@ -34,8 +34,11 @@ def render_index(run_dir: Path) -> Path:
     """Índice de outputs/runs/<runId>/: todos los results.json de <market>/<escenario>/."""
     entries = []
     for results in sorted(run_dir.glob("*/*/results.json")):
-        run = RunResult.read_json(results)
-        entries.append({"run": run, "link": results.parent.relative_to(run_dir).as_posix() + "/" + REPORT_FILE})
+        link = results.parent.relative_to(run_dir).as_posix() + "/" + REPORT_FILE
+        try:
+            entries.append({"run": RunResult.read_json(results), "link": link, "error": None})
+        except ValueError as exc:  # un results.json roto no tumba el índice entero
+            entries.append({"run": None, "link": link, "error": f"results.json ilegible ({type(exc).__name__})"})
     html = _env.get_template("index.html.j2").render(run_id=run_dir.name, entries=entries)
     path = run_dir / REPORT_FILE
     path.write_text(html, encoding="utf-8")

@@ -4,7 +4,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from betsson.checks.balance import evidence_of, read_amounts, reconcile
-from betsson.checks.common import apply_ui_changed, currency_check, login_check, read_check, real_play_check
+from betsson.checks.common import (
+    apply_ui_changed,
+    currency_check,
+    login_check,
+    positive_read_check,
+    read_check,
+    real_play_check,
+)
 from betsson.core import CheckId, CheckResult, MarketContext, PlayMode, Reading, SpinEnd
 
 
@@ -59,6 +66,8 @@ def _wager_is_used_wager(obs: S1Observation, market: MarketContext) -> CheckResu
     if problem:
         return CheckResult.inconclusive(cid, problem, evidence=evidence)
     bet, bet_after = amounts["apuesta"], amounts["apuesta tras la tirada"]
+    if bet.amount <= 0:
+        return CheckResult.inconclusive(cid, f"apuesta no positiva: {bet}", evidence=evidence)
     deducted = amounts["saldo del juego antes"] + amounts["ganancia"] - amounts["saldo del juego después"]
     tol = market.money_tolerance
     detail = f"apuesta mostrada {bet}; descontado {deducted}; apuesta tras la tirada {bet_after}"
@@ -73,9 +82,9 @@ def evaluate_s1(obs: S1Observation, market: MarketContext) -> list[CheckResult]:
     results = [
         login_check(obs.logged_in),
         real_play_check(obs.play_mode, obs.open_error),
-        currency_check([obs.betsson_before, obs.game_before, obs.bet, obs.win, obs.game_after], market),
+        currency_check([obs.game_before, obs.bet, obs.win, obs.game_after], [obs.betsson_before, obs.betsson_after], market),
         read_check(CheckId.BETSSON_BALANCE_BEFORE, obs.betsson_before, "saldo de Betsson antes"),
-        read_check(CheckId.WAGER_READ, obs.bet, "apuesta visible"),
+        positive_read_check(CheckId.WAGER_READ, obs.bet, "apuesta visible"),
         _spin_started(obs),
         _spin_completed(obs),
         read_check(CheckId.PAYOUT_READ, obs.win, "ganancia"),

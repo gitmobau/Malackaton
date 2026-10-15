@@ -39,8 +39,8 @@
         {% if r.evidence %}
         <div class="ev">
           {% for p in r.evidence %}
-            {% if p is image %}<a href="{{ p|posix }}"><img src="{{ p|posix }}" alt="{{ p.name }}"></a>
-            {% else %}<a href="{{ p|posix }}">{{ p.name }}</a>{% endif %}
+            {% if p is image %}<a href="{{ p|posix|urlencode }}"><img src="{{ p|posix|urlencode }}" alt="{{ p.name }}"></a>
+            {% else %}<a href="{{ p|posix|urlencode }}">{{ p.name }}</a>{% endif %}
           {% endfor %}
         </div>
         {% endif %}
@@ -55,7 +55,7 @@
 
 {% if run.evidence %}
 <h2>Evidencias generales</h2>
-<ul>{% for p in run.evidence %}<li><a href="{{ p|posix }}">{{ p|posix }}</a></li>{% endfor %}</ul>
+<ul>{% for p in run.evidence %}<li><a href="{{ p|posix|urlencode }}">{{ p|posix }}</a></li>{% endfor %}</ul>
 {% endif %}
 
 <p class="meta">Datos en bruto: <a href="results.json">results.json</a>. Lo dudoso cuenta como FAIL no concluyente; nunca como PASS.</p>
